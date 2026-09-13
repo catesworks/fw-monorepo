@@ -1,5 +1,7 @@
 # fleetworks-monorepo
 
+**Topics:** `fw`
+
 Shared npm packages for the Fleetworks suite (chorus, helmsman, rolodex,
 warden, yellow-pages + the fleetworks.dev apex site).
 
