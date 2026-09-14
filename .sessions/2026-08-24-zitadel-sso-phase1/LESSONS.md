@@ -22,13 +22,13 @@
   Zitadel JWKS) and `AUTH_DEV_SECRET` (HS256 bypass) could both be configured
   simultaneously in the same running API process, with the app choosing
   per-request. Wrong — `verify.ts`'s control flow is `if (config.issuer) ...
-  else if (config.devSecret) ...`: whichever is set first in that chain wins
+else if (config.devSecret) ...`: whichever is set first in that chain wins
   unconditionally, for every request.
 - **Why:** I had read this exact code earlier in the same session (for a
   different reason — confirming multi-issuer support didn't exist) and still
   produced a plan that assumed the two paths could coexist. Re-reading your
   own research isn't a substitute for re-checking a new design against it.
-- **How to apply:** A test/dev bypass that needs a *different* verification
+- **How to apply:** A test/dev bypass that needs a _different_ verification
   path than production needs a genuinely separate process/config (a distinct
   test-stack launch with `AUTH_ISSUER` unset), not a "both configured, pick at
   runtime" design against this package as it exists today.

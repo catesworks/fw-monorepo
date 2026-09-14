@@ -8,7 +8,7 @@ Keep it a story about the PROBLEM and the TECHNIQUE, not the proprietary system.
 
 # Your "before" state might not be what your migration plan thinks it is
 
-*Two independent AI code-review passes caught two completely different, real bugs in the same identity-migration plan — and neither would have been caught by just reading the plan carefully myself.*
+_Two independent AI code-review passes caught two completely different, real bugs in the same identity-migration plan — and neither would have been caught by just reading the plan carefully myself._
 
 ## The problem
 
@@ -22,7 +22,7 @@ That's what happened here. A plan to move a suite of internal apps onto a
 central identity provider assumed a clean starting point: every app verifies
 its own provider's tokens directly, no shared login exists. Digging into one
 app's actual login code turned up a comment that flatly contradicted the
-plan's own "grounded facts" section: production login for that app *already*
+plan's own "grounded facts" section: production login for that app _already_
 federated through the target identity provider — just indirectly, through the
 old provider acting as a relay. The token users actually got was still
 minted by the old system. Nothing in the new plan accounted for that.
@@ -35,22 +35,22 @@ carefully":
 **First**, an adversarial critic pass on a design decision — before any code
 was written — caught that the decision conflated two different values. The
 plan said "use this external ID to link accounts." What it should have said
-was "use this external ID to *find* the right account, then store a
-*completely different* ID once you've found it." Small distinction, but get
+was "use this external ID to _find_ the right account, then store a
+_completely different_ ID once you've found it." Small distinction, but get
 it backwards and the very first real login after migration silently fails to
 match, forever.
 
 ```ts
 // Wrong: the lookup key and the stored value are not the same thing
-user.correlationId = externalId
+user.correlationId = externalId;
 
 // Right: externalId only ever locates the row; a different value gets stored
-const localUser = await findByExternalId(externalId)
-localUser.providerSubject = tokenPayload.sub // NOT externalId
+const localUser = await findByExternalId(externalId);
+localUser.providerSubject = tokenPayload.sub; // NOT externalId
 ```
 
 The same review also caught a cardinality bug: the plan assumed one external
-identifier field could hold a value unique to *each* of four downstream
+identifier field could hold a value unique to _each_ of four downstream
 systems simultaneously. It can't — one field, one value. That's not a bug you
 spot by re-reading your own plan; it took an independent pass explicitly
 looking for exactly this kind of assumption.
@@ -79,11 +79,11 @@ when the actual code took one exclusively.
   the second pass never would have caught the cardinality assumption.
 - **"Store X" and "look up by X" are different operations even when X is the
   same field name.** This is an easy category of bug to write and a hard one
-  to notice yourself, because both operations *feel* like "using the
+  to notice yourself, because both operations _feel_ like "using the
   identifier."
 - **Simplifying scope (fewer real users → skip the elaborate migration
   machinery) is a legitimate call, but it doesn't reduce how carefully the
-  *smaller* remaining plan needs reviewing.** The simplified plan still had 5
+  _smaller_ remaining plan needs reviewing.** The simplified plan still had 5
   real, blocking issues.
 
 ## Takeaways

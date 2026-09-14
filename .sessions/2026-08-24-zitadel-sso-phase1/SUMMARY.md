@@ -124,16 +124,16 @@ production Zitadel cutover).
 
 ## Commits
 
-| SHA | Repo | Message | Pushed? |
-|-----|------|---------|---------|
-| `4b849a3` | cogs | fix(auth): SSO-SAML-SCIM Phase 1 gaps | yes |
-| `89b2981` | cogs | Version Packages (#2) — publishes `@cogs/auth@0.6.0` | yes |
-| `fbbcd82` | rolodex | feat(auth): SSO-SAML-SCIM Phase 1 — zitadel_subject + JIT correlation | yes |
-| `34d5a1a` | rolodex | chore(deps): bump @cogs/auth to ^0.6.0 | yes |
-| `2fdb067` | rolodex | style: prettier-format migration 0012 meta files | yes |
-| `04ca7f7` | yellow-pages | fix(web): fix broken sticky table/topbar headers, ... | yes |
-| `1617227` | yellow-pages | docs(session): dossier for e2e-sticky-headers session | yes |
-| — | fleetworks-monorepo | identity-correlation decision + master plan amendment | N/A — `.omc/` gitignored, not a commit |
+| SHA       | Repo                | Message                                                               | Pushed?                                |
+| --------- | ------------------- | --------------------------------------------------------------------- | -------------------------------------- |
+| `4b849a3` | cogs                | fix(auth): SSO-SAML-SCIM Phase 1 gaps                                 | yes                                    |
+| `89b2981` | cogs                | Version Packages (#2) — publishes `@cogs/auth@0.6.0`                  | yes                                    |
+| `fbbcd82` | rolodex             | feat(auth): SSO-SAML-SCIM Phase 1 — zitadel_subject + JIT correlation | yes                                    |
+| `34d5a1a` | rolodex             | chore(deps): bump @cogs/auth to ^0.6.0                                | yes                                    |
+| `2fdb067` | rolodex             | style: prettier-format migration 0012 meta files                      | yes                                    |
+| `04ca7f7` | yellow-pages        | fix(web): fix broken sticky table/topbar headers, ...                 | yes                                    |
+| `1617227` | yellow-pages        | docs(session): dossier for e2e-sticky-headers session                 | yes                                    |
+| —         | fleetworks-monorepo | identity-correlation decision + master plan amendment                 | N/A — `.omc/` gitignored, not a commit |
 
 ## Out of scope / deferred
 

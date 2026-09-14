@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { Logo } from './Logo.js';
 
 describe('Logo', () => {
@@ -12,20 +12,14 @@ describe('Logo', () => {
     const { container } = render(<Logo appName="Chorus" accentColor="#10A47A" />);
     expect(container.textContent).toBe('Fleetworks · Chorus');
 
-    const appNameSpan = Array.from(container.querySelectorAll('span')).find(
-      (el) => el.textContent === 'Chorus',
-    );
-    expect(appNameSpan).toBeDefined();
-    expect(appNameSpan!.style.color).toBe('rgb(16, 164, 122)');
+    const appNameSpan = screen.getByText('Chorus');
+    expect(appNameSpan.style.color).toBe('rgb(16, 164, 122)');
   });
 
   it('falls back to inherit for color when accentColor is omitted', () => {
-    const { container } = render(<Logo appName="Chorus" />);
+    render(<Logo appName="Chorus" />);
 
-    const appNameSpan = Array.from(container.querySelectorAll('span')).find(
-      (el) => el.textContent === 'Chorus',
-    );
-    expect(appNameSpan).toBeDefined();
-    expect(appNameSpan!.style.color).toBe('inherit');
+    const appNameSpan = screen.getByText('Chorus');
+    expect(appNameSpan.style.color).toBe('inherit');
   });
 });

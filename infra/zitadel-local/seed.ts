@@ -32,31 +32,31 @@
 //     docker-compose.yml; the PAT needs no crypto/signing to use from a
 //     throwaway script, so it's what `call()` actually sends.
 
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 try {
-  process.loadEnvFile(join(__dirname, ".env"));
+  process.loadEnvFile(join(__dirname, '.env'));
 } catch {
   // .env optional — ZITADEL_BASE_URL/etc. can still come from the shell env.
 }
 
 const BASE_URL =
   process.env.ZITADEL_BASE_URL ??
-  `http://${process.env.ZITADEL_DOMAIN ?? "localhost"}:${process.env.PROXY_HTTP_PUBLISHED_PORT ?? "8080"}`;
-const ORG_NAME = process.env.FLEETWORKS_ORG_NAME ?? "Fleetworks";
-const PROJECT_NAME = "Fleetworks Suite";
-const COMPOSE_SERVICE = "zitadel-api";
-const PAT_BOOTSTRAP_PATH = "/zitadel/bootstrap/fleetworks-seed-bot.pat";
+  `http://${process.env.ZITADEL_DOMAIN ?? 'localhost'}:${process.env.PROXY_HTTP_PUBLISHED_PORT ?? '8080'}`;
+const ORG_NAME = process.env.FLEETWORKS_ORG_NAME ?? 'Fleetworks';
+const PROJECT_NAME = 'Fleetworks Suite';
+const COMPOSE_SERVICE = 'zitadel-api';
+const PAT_BOOTSTRAP_PATH = '/zitadel/bootstrap/fleetworks-seed-bot.pat';
 
 const ROLES = [
-  { key: "admin", displayName: "Admin" },
-  { key: "member", displayName: "Member" },
+  { key: 'admin', displayName: 'Admin' },
+  { key: 'member', displayName: 'Member' },
 ] as const;
 
 interface AppSpec {
@@ -68,16 +68,16 @@ interface AppSpec {
   // scheme, no port) needs both set explicitly.
   redirectUri?: string;
   postLogoutRedirectUri?: string;
-  applicationType?: "OIDC_APP_TYPE_USER_AGENT" | "OIDC_APP_TYPE_WEB" | "OIDC_APP_TYPE_NATIVE";
+  applicationType?: 'OIDC_APP_TYPE_USER_AGENT' | 'OIDC_APP_TYPE_WEB' | 'OIDC_APP_TYPE_NATIVE';
 }
 
 // One client per app — deliberate: NOT one shared client across all 5 web
 // apps, and not shared with the mobile client below either.
 const APPS: AppSpec[] = [
-  { key: "helmsman", name: "Helmsman", port: 3025 },
+  { key: 'helmsman', name: 'Helmsman', port: 3025 },
   {
-    key: "chorus",
-    name: "Chorus",
+    key: 'chorus',
+    name: 'Chorus',
     port: 3021,
     // WEB, not the USER_AGENT default — same reason as yellow-pages below.
     // chorus' Phase 4 cutover runs the code exchange server-side in Node
@@ -85,11 +85,11 @@ const APPS: AppSpec[] = [
     // browser JS, and the plan's Decision 3 ports yellow-pages' BFF session
     // subsystem, keeping the exchange there), matching production's
     // zitadel_application_oidc.chorus_web in fleetworks-web/infra/zitadel.tf.
-    applicationType: "OIDC_APP_TYPE_WEB",
+    applicationType: 'OIDC_APP_TYPE_WEB',
   },
   {
-    key: "warden",
-    name: "Warden",
+    key: 'warden',
+    name: 'Warden',
     port: 3020,
     // WEB, not the USER_AGENT default — same reason as chorus above and
     // yellow-pages below. warden's Phase 4 cutover runs the code exchange
@@ -98,12 +98,12 @@ const APPS: AppSpec[] = [
     // zitadel_application_oidc.warden_web that Phase 4's Terraform step will
     // register in fleetworks-web/infra/zitadel.tf. Still a public client
     // (authMethodType NONE below) — direct Auth Code + PKCE, no client secret.
-    applicationType: "OIDC_APP_TYPE_WEB",
+    applicationType: 'OIDC_APP_TYPE_WEB',
   },
-  { key: "rolodex", name: "Rolodex", port: 3013 },
+  { key: 'rolodex', name: 'Rolodex', port: 3013 },
   {
-    key: "yellow-pages",
-    name: "Yellow Pages",
+    key: 'yellow-pages',
+    name: 'Yellow Pages',
     port: 3023,
     // WEB, not the USER_AGENT default the other web apps take: yellow-pages'
     // Phase 4 cutover runs the code exchange server-side in Node
@@ -112,48 +112,48 @@ const APPS: AppSpec[] = [
     // zitadel_application_oidc.yellow_pages_web in
     // fleetworks-web/infra/zitadel.tf. Kept in step deliberately — the
     // WEB-vs-USER_AGENT axis was a real caught bug in rolodex's own plan.
-    applicationType: "OIDC_APP_TYPE_WEB",
+    applicationType: 'OIDC_APP_TYPE_WEB',
   },
   {
-    key: "rolodex-mobile",
-    name: "Rolodex Mobile",
+    key: 'rolodex-mobile',
+    name: 'Rolodex Mobile',
     port: 0, // unused — native client, no localhost port; redirectUri below is authoritative.
     // Matches apps/mobile's real makeRedirectUri({ path: 'auth/callback' })
     // output with scheme 'rolodex' — pinned exactly by
     // apps/mobile/src/lib/__tests__/fleetworks-oauth.test.ts's own mock.
-    redirectUri: "rolodex://auth/callback",
-    postLogoutRedirectUri: "rolodex://",
-    applicationType: "OIDC_APP_TYPE_NATIVE",
+    redirectUri: 'rolodex://auth/callback',
+    postLogoutRedirectUri: 'rolodex://',
+    applicationType: 'OIDC_APP_TYPE_NATIVE',
   },
   {
-    key: "helmsman-mobile",
-    name: "Helmsman Mobile",
+    key: 'helmsman-mobile',
+    name: 'Helmsman Mobile',
     port: 0, // unused — native client, no localhost port; redirectUri below is authoritative.
     // Matches apps/mobile's makeRedirectUri({ path: 'auth/callback' }) output
     // with scheme 'helmsman' (helmsman/apps/mobile/app.config.ts:10).
-    redirectUri: "helmsman://auth/callback",
-    postLogoutRedirectUri: "helmsman://",
-    applicationType: "OIDC_APP_TYPE_NATIVE",
+    redirectUri: 'helmsman://auth/callback',
+    postLogoutRedirectUri: 'helmsman://',
+    applicationType: 'OIDC_APP_TYPE_NATIVE',
   },
   {
-    key: "chorus-mobile",
-    name: "Chorus Mobile",
+    key: 'chorus-mobile',
+    name: 'Chorus Mobile',
     port: 0, // unused — native client, no localhost port; redirectUri below is authoritative.
     // Matches apps/mobile's makeRedirectUri({ path: 'auth/callback' }) output
     // with scheme 'chorus' (chorus/apps/mobile/app.json:8).
-    redirectUri: "chorus://auth/callback",
-    postLogoutRedirectUri: "chorus://",
-    applicationType: "OIDC_APP_TYPE_NATIVE",
+    redirectUri: 'chorus://auth/callback',
+    postLogoutRedirectUri: 'chorus://',
+    applicationType: 'OIDC_APP_TYPE_NATIVE',
   },
   {
-    key: "yellow-pages-mobile",
-    name: "Yellow Pages Mobile",
+    key: 'yellow-pages-mobile',
+    name: 'Yellow Pages Mobile',
     port: 0, // unused — native client, no localhost port; redirectUri below is authoritative.
     // Matches apps/mobile's makeRedirectUri({ path: 'auth/callback' }) output
     // with scheme 'yellowpages' (yellow-pages/apps/mobile/app.config.js:11).
-    redirectUri: "yellowpages://auth/callback",
-    postLogoutRedirectUri: "yellowpages://",
-    applicationType: "OIDC_APP_TYPE_NATIVE",
+    redirectUri: 'yellowpages://auth/callback',
+    postLogoutRedirectUri: 'yellowpages://',
+    applicationType: 'OIDC_APP_TYPE_NATIVE',
   },
 ];
 
@@ -162,23 +162,23 @@ interface TestUserSpec {
   firstName: string;
   lastName: string;
   password: string;
-  role: (typeof ROLES)[number]["key"];
+  role: (typeof ROLES)[number]['key'];
 }
 
 const TEST_USERS: TestUserSpec[] = [
   {
-    username: "test-admin@fleetworks.dev",
-    firstName: "Test",
-    lastName: "Admin",
-    password: "TestAdmin1!",
-    role: "admin",
+    username: 'test-admin@fleetworks.dev',
+    firstName: 'Test',
+    lastName: 'Admin',
+    password: 'TestAdmin1!',
+    role: 'admin',
   },
   {
-    username: "test-member@fleetworks.dev",
-    firstName: "Test",
-    lastName: "Member",
-    password: "TestMember1!",
-    role: "member",
+    username: 'test-member@fleetworks.dev',
+    firstName: 'Test',
+    lastName: 'Member',
+    password: 'TestMember1!',
+    role: 'member',
   },
   {
     // A THIRD generic fleet-wide identity, added for apps whose RBAC ladder has
@@ -192,11 +192,11 @@ const TEST_USERS: TestUserSpec[] = [
     // The Zitadel `role` below is "member" because this instance only models
     // two Zitadel-level roles — an app's third rung is its own org_members
     // role, which Zitadel neither knows nor needs to know.
-    username: "test-viewer@fleetworks.dev",
-    firstName: "Test",
-    lastName: "Viewer",
-    password: "TestViewer1!",
-    role: "member",
+    username: 'test-viewer@fleetworks.dev',
+    firstName: 'Test',
+    lastName: 'Viewer',
+    password: 'TestViewer1!',
+    role: 'member',
   },
 ];
 
@@ -218,15 +218,15 @@ function getPat(): string {
   // coreutils (`exec sh`/`exec cat` both fail with ENOENT). `docker compose cp`
   // talks to the container's filesystem directly through the daemon, so it
   // works regardless of what's installed inside the container.
-  const dir = mkdtempSync(join(tmpdir(), "fleetworks-zitadel-"));
-  const localPath = join(dir, "seed-bot.pat");
+  const dir = mkdtempSync(join(tmpdir(), 'fleetworks-zitadel-'));
+  const localPath = join(dir, 'seed-bot.pat');
   try {
     execFileSync(
-      "docker",
-      ["compose", "cp", `${COMPOSE_SERVICE}:${PAT_BOOTSTRAP_PATH}`, localPath],
-      { cwd: __dirname, stdio: ["ignore", "ignore", "inherit"] },
+      'docker',
+      ['compose', 'cp', `${COMPOSE_SERVICE}:${PAT_BOOTSTRAP_PATH}`, localPath],
+      { cwd: __dirname, stdio: ['ignore', 'ignore', 'inherit'] },
     );
-    const pat = readFileSync(localPath, "utf8").trim();
+    const pat = readFileSync(localPath, 'utf8').trim();
     if (!pat) {
       throw new Error(`Read an empty PAT from ${PAT_BOOTSTRAP_PATH} inside ${COMPOSE_SERVICE}`);
     }
@@ -239,9 +239,9 @@ function getPat(): string {
 function makeCaller(pat: string) {
   return async function call<T>(rpcPath: string, body: unknown = {}): Promise<T> {
     const res = await fetch(`${BASE_URL}/${rpcPath}`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${pat}`,
       },
       body: JSON.stringify(body),
@@ -261,14 +261,14 @@ function isAlreadyExists(err: unknown): boolean {
   if (!(err instanceof ConnectError)) return false;
   if (err.status === 409) return true;
   const msg = JSON.stringify(err.body).toLowerCase();
-  return msg.includes("already exist") || msg.includes("alreadyexists");
+  return msg.includes('already exist') || msg.includes('alreadyexists');
 }
 
 // --- Steps -------------------------------------------------------------
 
 async function findOrgId(call: Call): Promise<string> {
   const res = await call<{ result?: Array<{ id: string; name: string }> }>(
-    "zitadel.org.v2.OrganizationService/ListOrganizations",
+    'zitadel.org.v2.OrganizationService/ListOrganizations',
     {},
   );
   const org = res.result?.find((o) => o.name === ORG_NAME);
@@ -283,7 +283,7 @@ async function findOrgId(call: Call): Promise<string> {
 
 async function findOrCreateProject(call: Call, organizationId: string): Promise<string> {
   const list = await call<{ projects?: Array<{ projectId: string; name: string }> }>(
-    "zitadel.project.v2.ProjectService/ListProjects",
+    'zitadel.project.v2.ProjectService/ListProjects',
     {},
   );
   const existing = list.projects?.find((p) => p.name === PROJECT_NAME);
@@ -292,7 +292,7 @@ async function findOrCreateProject(call: Call, organizationId: string): Promise<
     return existing.projectId;
   }
   const created = await call<{ projectId: string }>(
-    "zitadel.project.v2.ProjectService/CreateProject",
+    'zitadel.project.v2.ProjectService/CreateProject',
     { organizationId, name: PROJECT_NAME },
   );
   console.log(`[project] created "${PROJECT_NAME}" -> ${created.projectId}`);
@@ -301,7 +301,7 @@ async function findOrCreateProject(call: Call, organizationId: string): Promise<
 
 async function ensureRoles(call: Call, projectId: string): Promise<void> {
   const list = await call<{ projectRoles?: Array<{ key: string }> }>(
-    "zitadel.project.v2.ProjectService/ListProjectRoles",
+    'zitadel.project.v2.ProjectService/ListProjectRoles',
     { projectId },
   );
   const existingKeys = new Set((list.projectRoles ?? []).map((r) => r.key));
@@ -310,7 +310,7 @@ async function ensureRoles(call: Call, projectId: string): Promise<void> {
       console.log(`[role] "${role.key}" already exists`);
       continue;
     }
-    await call("zitadel.project.v2.ProjectService/AddProjectRole", {
+    await call('zitadel.project.v2.ProjectService/AddProjectRole', {
       projectId,
       roleKey: role.key,
       displayName: role.displayName,
@@ -331,7 +331,7 @@ interface CreatedApp {
 async function findOrCreateApp(call: Call, projectId: string, app: AppSpec): Promise<CreatedApp> {
   const redirectUri = app.redirectUri ?? `http://localhost:${app.port}/auth/callback`;
   const postLogoutRedirectUri = app.postLogoutRedirectUri ?? `http://localhost:${app.port}`;
-  const applicationType = app.applicationType ?? "OIDC_APP_TYPE_USER_AGENT";
+  const applicationType = app.applicationType ?? 'OIDC_APP_TYPE_USER_AGENT';
 
   const list = await call<{
     applications?: Array<{
@@ -339,7 +339,7 @@ async function findOrCreateApp(call: Call, projectId: string, app: AppSpec): Pro
       name: string;
       oidcConfiguration?: { clientId?: string };
     }>;
-  }>("zitadel.application.v2.ApplicationService/ListApplications", {
+  }>('zitadel.application.v2.ApplicationService/ListApplications', {
     filters: [{ projectIdFilter: { projectId } }],
   });
   const existing = list.applications?.find((a) => a.name === app.name);
@@ -358,25 +358,25 @@ async function findOrCreateApp(call: Call, projectId: string, app: AppSpec): Pro
   const created = await call<{
     applicationId: string;
     oidcConfiguration?: { clientId: string };
-  }>("zitadel.application.v2.ApplicationService/CreateApplication", {
+  }>('zitadel.application.v2.ApplicationService/CreateApplication', {
     projectId,
     name: app.name,
     oidcConfiguration: {
       redirectUris: [redirectUri],
-      responseTypes: ["OIDC_RESPONSE_TYPE_CODE"],
-      grantTypes: ["OIDC_GRANT_TYPE_AUTHORIZATION_CODE", "OIDC_GRANT_TYPE_REFRESH_TOKEN"],
+      responseTypes: ['OIDC_RESPONSE_TYPE_CODE'],
+      grantTypes: ['OIDC_GRANT_TYPE_AUTHORIZATION_CODE', 'OIDC_GRANT_TYPE_REFRESH_TOKEN'],
       // Public client, no client secret — browser Auth Code+PKCE
       // (USER_AGENT) for the 5 web apps, native Auth Code+PKCE (NATIVE,
       // custom URI scheme) for the mobile app.
       applicationType,
-      authMethodType: "OIDC_AUTH_METHOD_TYPE_NONE",
+      authMethodType: 'OIDC_AUTH_METHOD_TYPE_NONE',
       postLogoutRedirectUris: [postLogoutRedirectUri],
       // Required for http://localhost redirect URIs (non-TLS) to be
       // accepted; harmless for the mobile app's custom-scheme URI.
       developmentMode: true,
       // Zitadel defaults to opaque access tokens; every app's packages/auth
       // verifies via jose's jwtVerify(), which requires an actual JWT.
-      accessTokenType: "OIDC_TOKEN_TYPE_JWT",
+      accessTokenType: 'OIDC_TOKEN_TYPE_JWT',
     },
   });
   const clientId = created.oidcConfiguration?.clientId;
@@ -384,12 +384,23 @@ async function findOrCreateApp(call: Call, projectId: string, app: AppSpec): Pro
     throw new Error(`CreateApplication for "${app.name}" did not return a clientId`);
   }
   console.log(`[app] created "${app.name}" -> ${clientId}`);
-  return { key: app.key, name: app.name, port: app.port, clientId, redirectUri, postLogoutRedirectUri };
+  return {
+    key: app.key,
+    name: app.name,
+    port: app.port,
+    clientId,
+    redirectUri,
+    postLogoutRedirectUri,
+  };
 }
 
-async function findOrCreateUser(call: Call, organizationId: string, user: TestUserSpec): Promise<string> {
+async function findOrCreateUser(
+  call: Call,
+  organizationId: string,
+  user: TestUserSpec,
+): Promise<string> {
   const list = await call<{ result?: Array<{ userId: string; username: string }> }>(
-    "zitadel.user.v2.UserService/ListUsers",
+    'zitadel.user.v2.UserService/ListUsers',
     {},
   );
   const existing = list.result?.find((u) => u.username === user.username);
@@ -398,7 +409,7 @@ async function findOrCreateUser(call: Call, organizationId: string, user: TestUs
     return existing.userId;
   }
 
-  const created = await call<{ id: string }>("zitadel.user.v2.UserService/CreateUser", {
+  const created = await call<{ id: string }>('zitadel.user.v2.UserService/CreateUser', {
     organizationId,
     username: user.username,
     human: {
@@ -419,7 +430,7 @@ async function ensureGrant(
   roleKey: string,
 ): Promise<void> {
   try {
-    await call("zitadel.authorization.v2.AuthorizationService/CreateAuthorization", {
+    await call('zitadel.authorization.v2.AuthorizationService/CreateAuthorization', {
       userId,
       projectId,
       organizationId,
@@ -449,18 +460,21 @@ async function fetchDiscovery(): Promise<{
   return res.json();
 }
 
-function writeGeneratedEnv(apps: CreatedApp[], discovery: Awaited<ReturnType<typeof fetchDiscovery>>): void {
+function writeGeneratedEnv(
+  apps: CreatedApp[],
+  discovery: Awaited<ReturnType<typeof fetchDiscovery>>,
+): void {
   const lines: string[] = [];
-  lines.push("# Generated by seed.ts — do not edit by hand.");
+  lines.push('# Generated by seed.ts — do not edit by hand.');
   lines.push(`# Regenerate with: node seed.ts (after docker compose up -d --wait)`);
-  lines.push("");
-  lines.push("This file is NOT wired into any app yet (see README.md). It documents the");
+  lines.push('');
+  lines.push('This file is NOT wired into any app yet (see README.md). It documents the');
   lines.push("env vars each app's local `.env.local` would need once that wiring happens.");
-  lines.push("");
+  lines.push('');
   for (const app of apps) {
     lines.push(`## ${app.name}`);
-    lines.push("");
-    lines.push("```");
+    lines.push('');
+    lines.push('```');
     lines.push(`ZITADEL_ISSUER=${discovery.issuer}`);
     lines.push(`ZITADEL_CLIENT_ID=${app.clientId}`);
     lines.push(`ZITADEL_JWKS_URI=${discovery.jwks_uri}`);
@@ -468,11 +482,11 @@ function writeGeneratedEnv(apps: CreatedApp[], discovery: Awaited<ReturnType<typ
     lines.push(`ZITADEL_TOKEN_ENDPOINT=${discovery.token_endpoint}`);
     lines.push(`ZITADEL_REDIRECT_URI=${app.redirectUri}`);
     lines.push(`ZITADEL_POST_LOGOUT_REDIRECT_URI=${app.postLogoutRedirectUri}`);
-    lines.push("```");
-    lines.push("");
+    lines.push('```');
+    lines.push('');
   }
-  const outPath = join(__dirname, "generated-client-env.md");
-  writeFileSync(outPath, lines.join("\n"));
+  const outPath = join(__dirname, 'generated-client-env.md');
+  writeFileSync(outPath, lines.join('\n'));
   console.log(`[env] wrote ${outPath}`);
 }
 
@@ -500,14 +514,14 @@ async function main() {
   const discovery = await fetchDiscovery();
   writeGeneratedEnv(apps, discovery);
 
-  console.log("\nDone. Test users:");
+  console.log('\nDone. Test users:');
   for (const user of TEST_USERS) {
     console.log(`  ${user.username} / ${user.password} (role: ${user.role})`);
   }
 }
 
 main().catch((err) => {
-  console.error("\nSeed script failed:");
-  console.error(err instanceof Error ? err.stack ?? err.message : err);
+  console.error('\nSeed script failed:');
+  console.error(err instanceof Error ? (err.stack ?? err.message) : err);
   process.exitCode = 1;
 });

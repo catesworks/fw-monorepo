@@ -5,8 +5,7 @@
   --fw-color-border: #e5e7eb;
   --fw-color-surface: #f9fafb;
 
-  --fw-font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --fw-font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --fw-font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
 
   --fw-radius-sm: 6px;

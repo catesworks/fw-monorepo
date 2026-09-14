@@ -85,7 +85,12 @@ export function AppSwitcher({ currentId }: AppSwitcherProps) {
                 <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--fw-space-2)' }}>
                   <span
                     aria-hidden
-                    style={{ width: 8, height: 8, borderRadius: '50%', background: app.accentColor }}
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: app.accentColor,
+                    }}
                   />
                   {app.name}
                 </span>

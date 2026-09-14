@@ -32,13 +32,13 @@ findings before re-submitting for review.
 
 ## Repo state
 
-| Repo | Branch | Last commit | Committed? | Pushed? | Notes |
-|------|--------|-------------|-----------|---------|-------|
-| cogs | main | `89b2981` Version Packages (#2) | yes | yes | `@cogs/auth@0.6.0` published to npm via OIDC trusted publishing |
-| rolodex | main | `2fdb067` style: prettier-format migration 0012 meta files | yes | yes | `.omc/plans/zitadel-sso-phase1-cutover.md` exists but is gitignored (repo-wide `.omc/` policy) — not a commit, a local planning artifact, currently marked **pending approval / REVISE** |
-| yellow-pages | main | `1617227` docs(session): dossier for e2e-sticky-headers session | yes | yes | includes 2 previously-unpushed completed plans (semantic-operational-graph, bidirectional-saas-connectors) + the sticky-header e2e fix |
-| fleetworks-monorepo | main | `5753e18` feat(test): add real Vitest suite for suite-nav and ui packages | yes | yes | this session's own edits (`.omc/plans/identity-correlation-externalid-decision.md`, and the amended `sso-saml-scim-platform-identity.md`) are gitignored, local-only — see Lessons |
-| chorus / helmsman / warden | main | (untouched this session) | — | — | surveyed read-only for cross-app impact; zero diff confirmed via `git status` |
+| Repo                       | Branch | Last commit                                                               | Committed? | Pushed? | Notes                                                                                                                                                                                    |
+| -------------------------- | ------ | ------------------------------------------------------------------------- | ---------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| cogs                       | main   | `89b2981` Version Packages (#2)                                           | yes        | yes     | `@cogs/auth@0.6.0` published to npm via OIDC trusted publishing                                                                                                                          |
+| rolodex                    | main   | `2fdb067` style: prettier-format migration 0012 meta files                | yes        | yes     | `.omc/plans/zitadel-sso-phase1-cutover.md` exists but is gitignored (repo-wide `.omc/` policy) — not a commit, a local planning artifact, currently marked **pending approval / REVISE** |
+| yellow-pages               | main   | `1617227` docs(session): dossier for e2e-sticky-headers session           | yes        | yes     | includes 2 previously-unpushed completed plans (semantic-operational-graph, bidirectional-saas-connectors) + the sticky-header e2e fix                                                   |
+| fleetworks-monorepo        | main   | `5753e18` feat(test): add real Vitest suite for suite-nav and ui packages | yes        | yes     | this session's own edits (`.omc/plans/identity-correlation-externalid-decision.md`, and the amended `sso-saml-scim-platform-identity.md`) are gitignored, local-only — see Lessons       |
+| chorus / helmsman / warden | main   | (untouched this session)                                                  | —          | —       | surveyed read-only for cross-app impact; zero diff confirmed via `git status`                                                                                                            |
 
 ## Read first (rebuilds context fastest)
 

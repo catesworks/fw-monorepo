@@ -25,9 +25,7 @@ describe('suiteApps', () => {
 
 describe('getSuiteApp', () => {
   it('returns the matching entry for a known id', () => {
-    expect(getSuiteApp('chorus')).toEqual(
-      suiteApps.find((app) => app.id === 'chorus'),
-    );
+    expect(getSuiteApp('chorus')).toEqual(suiteApps.find((app) => app.id === 'chorus'));
   });
 
   it('returns undefined for an unknown id', () => {

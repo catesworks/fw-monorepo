@@ -19,10 +19,7 @@ function parseCssVars(source: string): Record<string, string> {
 const cssVars = parseCssVars(css);
 
 function normalizeFont(value: string): string {
-  return value
-    .trim()
-    .replace(/['"]/g, '')
-    .replace(/\s+/g, ' ');
+  return value.trim().replace(/['"]/g, '').replace(/\s+/g, ' ');
 }
 
 describe('tokens.ts / tokens.css normalization contract', () => {

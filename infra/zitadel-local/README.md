@@ -108,7 +108,7 @@ exact role set matches.
 
 ### Test users
 
-| Username                    | Password       | Role     |
+| Username                     | Password       | Role     |
 | ---------------------------- | -------------- | -------- |
 | `test-admin@fleetworks.dev`  | `TestAdmin1!`  | `admin`  |
 | `test-member@fleetworks.dev` | `TestMember1!` | `member` |

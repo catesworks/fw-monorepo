@@ -64,7 +64,7 @@ spike's own finding) — this plan does not touch the shared package at all.
 
 ## Notes
 
-- The clean-cutover *decision itself* was explicitly reviewed and endorsed by
-  codex critic ("optimal for 2–3 real accounts") — it's the *execution plan*
+- The clean-cutover _decision itself_ was explicitly reviewed and endorsed by
+  codex critic ("optimal for 2–3 real accounts") — it's the _execution plan_
   for that decision that needs rework, not the decision.
 - `cogs/packages/auth` has zero diff as a result of this decision, confirmed.

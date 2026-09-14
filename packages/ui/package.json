@@ -30,7 +30,7 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "lint": "echo \"no lint configured yet\"",
+    "lint": "eslint .",
     "test": "vitest run --project ui"
   },
   "peerDependencies": {

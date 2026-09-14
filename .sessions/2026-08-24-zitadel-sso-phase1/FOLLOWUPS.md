@@ -52,8 +52,7 @@ order:
 - [ ] Phase 4 (chorus/helmsman/warden) correlation mechanism — explicitly
       deferred in the amended master plan, not urgent (their Phase 4
       sub-tasks haven't started).
-- [ ] Phase 2 (SCIM provisioning + `directory_users` reconciliation, Decision
-      2) — its own future decision, informed by but not identical to this
+- [ ] Phase 2 (SCIM provisioning + `directory_users` reconciliation, Decision 2) — its own future decision, informed by but not identical to this
       session's Decision 5 work.
 
 ## Known risks / watch-outs
