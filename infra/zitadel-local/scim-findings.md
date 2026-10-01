@@ -156,3 +156,89 @@ was not exercised.
 - Pagination behaviour beyond 26 users (default page cap 100 observed via
   `appliedLimit`; larger sets not exercised).
 - Whether a future Zitadel release adds enterprise-extension storage.
+
+## 2026-10-01: two-org role-claim capture + full org listing (e8s.5.2.3)
+
+Tracks `fleetworks-monorepo-e8s.5.2.3`. That bead's decision is already made
+(option (c): tenant scope stays in each app, `orgs.zitadel_org_id`
+withdrawn). This section is the live evidence its acceptance criteria asked
+for. Instance: the shared local stack, `http://localhost:8089`, v4.17.1.
+Seed-bot PAT for admin RPCs and login-client PAT for session/callback, both
+read via `docker compose cp` and never printed.
+
+### Full org listing
+
+`RPC zitadel.org.v2.OrganizationService/ListOrganizations {"query":{"limit":100}}`:
+
+| When                   | totalResult | Orgs                                                                                       |
+| ---------------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| before                 | 1           | `Fleetworks` `387742307199329283`, ACTIVE, primaryDomain `fleetworks.localhost`            |
+| during (with fixtures) | 3           | the above + `e8s-claims-a-<ts>` and `e8s-claims-b-<ts>` (primaryDomain `<name>.localhost`) |
+| after cleanup          | 1           | `Fleetworks` only                                                                          |
+
+The local instance therefore models exactly one real org. Projects:
+`Fleetworks Suite` (`387742352933954563`) and the built-in `ZITADEL`, both
+owned by `Fleetworks`. Every app tenant lives in the apps' own `orgs` tables,
+not in Zitadel, which is consistent with option (c).
+
+### Fixture (throwaway, deleted)
+
+- Org A `e8s-claims-a-<ts>` owns project `e8s-claims-project` (with
+  `projectRoleAssertion: true`), roles `admin` and `member`, and one public
+  PKCE web client (`idTokenRoleAssertion: true`,
+  `idTokenUserinfoAssertion: true`).
+- `CreateProjectGrant {projectId, grantedOrganizationId: <B>, roleKeys:[admin, member]}`
+  grants the project to org B `e8s-claims-b-<ts>`.
+- User `e8s-claims-user@example.test` is created in org A, with two
+  authorizations (`authorization.v2.CreateAuthorization`):
+  - `organizationId: A`, roles `[member]`;
+  - `organizationId: B` (via the project grant), roles `[admin, member]`. A
+    granted org can authorize a user that lives in another org: it returned 200.
+- `ListAuthorizations {"filters":[{"inUserIds":{"ids":[<user>]}}]}` returns 2
+  rows. For both, `project.organizationId` is A (the owner) and
+  `organization.id` is the granting org (A or B).
+
+### Captured ID-token claims (password session → `CreateCallback` → PKCE token exchange)
+
+The scope always includes `openid profile email urn:zitadel:iam:org:project:roles`.
+Ids are shortened: `A=…544261`, `B=…761989`, project `P=…534149`.
+
+```jsonc
+// no org scope: roles from BOTH orgs, keyed role -> {orgId: orgPrimaryDomain}
+"urn:zitadel:iam:org:project:roles": {
+  "admin":  { "B": "e8s-claims-b-<ts>.localhost" },
+  "member": { "A": "e8s-claims-a-<ts>.localhost", "B": "e8s-claims-b-<ts>.localhost" }
+},
+"urn:zitadel:iam:org:project:P:roles": { /* identical copy, keyed by project id */ }
+```
+
+| Extra scope                      | Result                                                                                                                                                                            |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| none                             | both orgs' roles, as above                                                                                                                                                        |
+| `urn:zitadel:iam:org:id:A` (own) | same both-org role map, plus `urn:zitadel:iam:org:id: A` and `urn:zitadel:iam:user:resourceowner:{id,name,primary_domain}` = A                                                    |
+| `urn:zitadel:iam:org:id:B`       | **rejected** at `CreateCallback`: `User is no member of the required organization (COMMAND-59ljd)`. The org-id scope means "the user's own org", not "the org whose grant I want" |
+| `urn:zitadel:iam:org:roles:id:A` | role map filtered to A: `{"member":{"A":…}}`                                                                                                                                      |
+| `urn:zitadel:iam:org:roles:id:B` | role map filtered to B: `{"admin":{"B":…},"member":{"B":…}}`                                                                                                                      |
+
+The JWT access token carried no role claims, because the app was created
+without `accessTokenRoleAssertion`. It did carry
+`urn:zitadel:iam:org:id` and `urn:zitadel:iam:user:resourceowner:*` when
+`org:id` was requested.
+
+### What it means for e8s.5.2.3
+
+- A user with grants in two orgs gets **one** token. In it, each role maps to
+  the set of org ids that granted it. A role is not tied to a single
+  "current org", and an app reading `roles` without
+  `urn:zitadel:iam:org:roles:id:<org>` gets the union.
+- Selecting a tenant via Zitadel would need the app to send
+  `org:roles:id:<org>` per login (filtering), not `org:id` (which only accepts
+  the user's own org). This is an extra moving part per tenant switch, and it
+  supports option (c): the app keeps tenant scope locally and does not
+  correlate tenants by Zitadel org id.
+
+Cleanup: both `e8s-claims-*` orgs were deleted, which also removed the
+project, project grant, app, user and authorizations. Afterwards `GetUserByID`
+→ `QUERY-Dfbg2` not found, `ListOrganizations` → only `Fleetworks`, and
+`ListProjects` → only the two pre-existing projects. Nothing on `Fleetworks`
+or `Fleetworks Suite` was touched.
