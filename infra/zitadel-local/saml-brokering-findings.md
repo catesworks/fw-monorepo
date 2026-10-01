@@ -17,6 +17,15 @@ exchange, JWKS and userinfo are the same as for a password login.
 Reproduce with `./saml-broker-demo.sh` (about 15 s, cleans up after itself).
 It passed 4 full runs in a row at the end of the session.
 
+**Update (fw-mf9, same day): the attribute-mapping gap is closed.** An Actions
+V2 response hook on `RetrieveIdentityProviderIntent` supplies email and name
+for SAML users, and the hosted Login UI then JIT-creates them silently with no
+"Complete your data" form. The same hook links a SAML login to an existing
+SCIM-provisioned user. SCIM deactivation blocks SAML login. Force-SSO
+(`allowUsernamePassword: false`) is enforced by the Login UI only, not by the
+Session API. Details in "fw-mf9" below; `HOOK=1 ./saml-broker-demo.sh` against
+a throwaway second Zitadel reproduces it.
+
 ## What was run
 
 | Piece        | Value                                                                                                                        |
@@ -87,7 +96,7 @@ reaches the callback is a plain OIDC authorization code from the same issuer.
 | The ACS failure itself is not logged by `zitadel-api`                                      | Debug SAML failures with `select event_type, payload from eventstore.events2 where aggregate_type='idpintent' order by created_at desc limit 2`, or production equivalent: the intent event. The Login UI only shows the generic error.                                                                                                |
 | IdP sends a `transient` NameID even though Zitadel requested `persistent`                  | SimpleSAMLphp's default. With transient, the external id changes every login, so linking breaks unless `transientMappingAttributeName` is set on the Zitadel IdP. Ask customers for a **persistent** NameID (immutable id, not email) or set the mapping attribute.                                                                    |
 | `CreateSession` → 404 `QUERY-Dfbg2` immediately after `AddHumanUser`                       | Projection lag (eventual consistency). The script polls `GetUserByID` before creating the session.                                                                                                                                                                                                                                     |
-| `ActionService/CreateTarget` → `Errors.Target.DeniedURL`                                   | See "Attribute mapping" below.                                                                                                                                                                                                                                                                                                         |
+| `ActionService/CreateTarget` → `Errors.Target.DeniedURL`                                   | Default `HTTPClient.DenyList` (localhost, loopback, RFC1918, `0.0.0.0/8`). Locally: a second Zitadel with `ZITADEL_HTTPCLIENT_DENYLIST` overridden (see "fw-mf9"). Production: a public HTTPS target.                                                                                                                                  |
 
 ## Attribute mapping and JIT: the important caveat
 
@@ -117,9 +126,9 @@ the external user id. Every attribute is passed through raw in
   `localhost`, `0.0.0.0/8` (OrbStack's `host.docker.internal` is in it),
   RFC1918 and loopback. Making it work locally means overriding
   `ZITADEL_HTTPCLIENT_DENYLIST` and restarting the shared stack, which was out
-  of scope here. **Not proven.** In production the target would be a public
-  HTTPS endpoint, and the payload should be verified with the target's
-  signing key.
+  of scope here. ~~Not proven.~~ **Proven in fw-mf9 (below)** on a throwaway
+  second instance. In production the target would be a public HTTPS endpoint,
+  and the payload should be verified with the target's signing key.
 - Executions are **instance-wide**, keyed on the method and not on the IdP. A
   single mapper therefore serves every customer IdP, and must branch on
   `idpInformation.idpId` (or org) for per-customer attribute names
@@ -145,8 +154,9 @@ the external user id. Every attribute is passed through raw in
   customer org), so tenant isolation follows from where the IdP lives.
 - Each customer org needs a custom login policy (`allowExternalIdp: true`)
   with the IdP added to it. The script does this.
-  - **Not tested:** whether `allowUsernamePassword: false` (forcing SSO) blocks
-    password fallback for that org.
+  - `allowUsernamePassword: false` (forcing SSO) hides the password path in
+    the hosted Login UI but does **not** stop the Session API from accepting
+    a password check. See "fw-mf9" (tested).
 - Access to the rolodex project for users of another org relied on this
   local project having no role-check / project-check flags. A real setup will
   want project grants to the customer org plus authorizations. See SCIM
@@ -177,10 +187,12 @@ the external user id. Every attribute is passed through raw in
      2 schema (`GET /scim/v2/{org}/Schemas` only advertises `core:2.0:User`).
   3. Agree with the customer that SAML NameID = SCIM `userName` (email), and
      link on email in the mapper.
-- **Not tested here:** a SCIM-provisioned user followed by a SAML login. This
-  is the next experiment if both are offered to one customer.
-- Deprovisioning: SCIM `DELETE`/deactivate in Zitadel blocks the next SAML
-  login (no active user), which is the desired behavior. Not exercised here.
+- SCIM-provisioned user followed by a SAML login: **tested in fw-mf9**.
+  Without a hook the intent has no `userId` (duplicate-user risk confirmed);
+  option 1 (hook links by email inside the IdP's org) works.
+- Deprovisioning: SCIM deactivate blocks the next SAML login at
+  `CreateSession` (`Errors.User.NotActive`). **Tested in fw-mf9.** SCIM
+  `DELETE` was not exercised.
 - Phase 2 found SCIM enterprise `employeeNumber` is void on this version. SAML
   attributes are not stored at all (only the raw intent payload), so neither
   path gives a durable employee-number match key today.
@@ -235,10 +247,10 @@ login RPC zitadel.oidc.v2.OIDCService/CreateCallback
       {"authRequestId":"<id>","session":{"sessionId","sessionToken"}}  -> {callbackUrl (with code)}
       POST /oauth/v2/token  grant_type=authorization_code, code, redirect_uri, client_id, code_verifier
 
-seed  RPC zitadel.action.v2.ActionService/CreateTarget       (FAILED locally: DeniedURL)
+seed  RPC zitadel.action.v2.ActionService/CreateTarget       (DeniedURL on the shared stack; OK with the denylist override)
       {"name":"saml-broker-attr-map","restCall":{"interruptOnError":true},
-       "endpoint":"http://host.docker.internal:18090/call","timeout":"10s"}
-seed  RPC zitadel.action.v2.ActionService/SetExecution      (not reached)
+       "endpoint":"http://host.docker.internal:18190/call","timeout":"10s"}  -> {id, signingKey}
+seed  RPC zitadel.action.v2.ActionService/SetExecution
       {"condition":{"response":{"method":"/zitadel.user.v2.UserService/RetrieveIdentityProviderIntent"}},
        "targets":["<targetId>"]}
 
@@ -261,13 +273,156 @@ seed  RPC zitadel.org.v2.OrganizationService/DeleteOrganization {"organizationId
    domain discovery.
 4. An instance-wide Actions V2 response target mapping per-IdP attribute
    names to the Zitadel profile/email (and optionally linking to SCIM-created
-   users). **Required for real JIT. Not yet proven.**
+   users). **Required for real JIT. Proven locally in fw-mf9**; production
+   needs it hosted on a public HTTPS endpoint with signature checks.
 5. Authorization: project grant to the customer org plus role assignment.
    SAML `groups` are not mapped by anything today.
    - Either SCIM (Phase 2: `CreateAuthorization` works) or the same action
      creates the authorizations.
 6. Support runbook: on login failure, read the `idpintent.failed` event
    reason. Track the customer's cert expiry.
+
+## fw-mf9 (2026-10-01): attribute-mapping hook, SCIM overlap, deprovision, force-SSO
+
+### Setup: a throwaway second Zitadel, not the shared one
+
+The denylist can only be changed by restarting Zitadel with new config. The
+shared stack was left alone, and a second v4.17.1 instance was started for
+this test only. It had its own compose project (`fwmf9-zt`), its own
+Postgres and volumes, and `127.0.0.1:18189`. It was built from this
+directory's compose file with these changes:
+
+- `ZITADEL_HTTPCLIENT_DENYLIST: 192.0.2.1`, one TEST-NET address, which
+  replaces the default list. An empty value may be read as "unset".
+- A Traefik with the **file** provider and no docker socket. It serves the API
+  and Login UI v2 on one origin. Two lessons came out of this:
+  - Do not give throwaway containers `traefik.*` labels. The shared Traefik
+    watches the docker socket and would pick them up.
+  - If the Login UI runs on its own port, the Login UI's
+    `StartIdentityProviderIntent` builds the SAML SP entity ID and ACS from
+    the UI's host (`localhost:18191/idps/...`). The IdP then answers
+    "Metadata not found". The API and the Login UI need the same origin.
+- A minimal seed: one project and one rolodex-like public PKCE web client. The
+  stack's `seed.ts` was not used, because it reads PATs from, and writes
+  `generated-client-env.md` for, the shared stack.
+
+Run: `HOOK=1 ZITADEL_BASE=http://localhost:18189 ZITADEL_COMPOSE_DIR=<dir>
+ROLODEX_CLIENT_ID=<client> IDP_PORT=18180 IDP_CONTAINER=fwmf9-saml-idp
+./saml-broker-demo.sh`. It passed 2 HOOK runs in a row. The no-hook mode was
+run once on the throwaway instance and once on the shared stack; steps 10-12
+run in both modes. The whole instance was then torn down (`docker compose
+down -v`).
+
+### Proven: an Actions V2 response hook supplies email/name for SAML users
+
+- `CreateTarget` (restCall, `interruptOnError: true`, endpoint
+  `http://host.docker.internal:18190/call`) succeeds once the denylist is
+  overridden. It returns `{id, signingKey}`. `SetExecution` with
+  `condition.response.method = /zitadel.user.v2.UserService/RetrieveIdentityProviderIntent`
+  wires it up.
+- What the target receives (observed):
+  - `{fullMethod, instanceID, orgID, userID, headers, request, response}`.
+  - `orgID`/`userID` belong to the **caller** (the login client in the
+    instance's default org), not the customer org. The mapper finds the org
+    with `zitadel.idp.v2.IdentityProviderService/GetIDPByID` →
+    `idp.details.resourceOwner`.
+  - `response` has `idpInformation` (`idpId`, `userId` = NameID, `saml.assertion`
+    base64, `rawInformation.attributes`), `addHumanUser`, **and**
+    `createUser` (the v2 CreateUser shape, `createUser.human.{profile,email,idpLinks}`).
+  - Header `ZITADEL-Signature: t=<unix>,v1=<hex>`. The mapper verifies
+    HMAC-SHA256(signingKey, `"<t>.<body>"`) and returns 401 otherwise.
+    Verification passed on every call. Any mismatch would have failed the
+    login, because of `interruptOnError`.
+- The JSON the target returns **replaces** the response. The reference mapper
+  is embedded in the demo script (Node, no dependencies). It fills
+  `username`, `profile.{givenName,familyName,displayName}`,
+  `email:{email,isVerified:true}`, `idpLinks[].userName` and
+  `idpInformation.userName` from the raw attributes. It knows both plain
+  names and the Entra claim URIs.
+- API path (script): `RetrieveIdentityProviderIntent` now returns a filled
+  `addHumanUser`. `AddHumanUser` with it verbatim → OIDC tokens; userinfo
+  shows `email=alice@acme.example`, `email_verified=true`, `name=Alice
+Anderson`.
+- **Hosted Login UI v2 path (browser, Playwright against localhost only).**
+  - With the hook: IdP login as `bob` → straight to the rolodex
+    `/auth/callback?code=…` with **no "Complete your data" form**. The user
+    was created in the customer org as `bob@acme.example`, Bob Brown,
+    email verified. This ran on an org with `allowRegister:false` and
+    `allowUsernamePassword:false`, so silent JIT through IdP auto-creation
+    does not need self-registration enabled.
+  - **Gotcha:** the Login UI reads `createUser` (oneof `userAction`) **before**
+    the deprecated `addHumanUser`. A mapper that fills only `addHumanUser`
+    still gets the form with blank fields. That was observed first, and the
+    mapper must fill both.
+- Production needs:
+  - The mapper as a public HTTPS service. Executions are instance-wide, so it
+    serves every customer IdP.
+  - A per-IdP attribute table keyed on `idpInformation.idpId`.
+  - Monitoring. With `interruptOnError: true`, mapper downtime means no
+    federated logins. With `false`, users would see the blank form again.
+
+### SCIM user then SAML login (overlap): duplicate risk confirmed, hook fixes it
+
+- Without the hook: `carol@acme.example` was SCIM-created in the customer
+  org. Her first SAML login's intent has **no `userId`**, so it would register
+  a second user (tested in both no-hook runs).
+- With the hook: when `userId` is empty, the mapper looks up a user by email
+  with `ListUsers` (`emailQuery` + `organizationIdQuery`, which are ANDed) in
+  the IdP's org. On exactly one match it calls
+  `UserService/AddIDPLink {userId, idpLink:{idpId, userId:<NameID>, userName}}`
+  and sets `response.userId`.
+  - The intent then resolves to the SCIM user. `CreateSession` with the
+    intent succeeds, and the token `sub` is the SCIM user's id. No duplicate.
+- Caveat: this trusts the IdP's email as a match key. That is acceptable only
+  inside the IdP's own org, which is what the mapper scopes to. A customer
+  whose SCIM `userName`/email differs from the SAML email needs a different
+  key (e.g. SCIM `externalId` = NameID, but see Phase 2 finding (e) on
+  `externalId` clobbering).
+
+### SCIM deactivate blocks SAML login
+
+SCIM `PATCH active=false` → `USER_STATE_INACTIVE`. The next SAML round trip
+still succeeds at the IdP and the ACS, and the intent still resolves to the
+user. `CreateSession` then fails with `Errors.User.NotActive (SESSION-Gj4ko)`,
+so no tokens are issued. This is the desired behavior. SCIM `DELETE` was not
+tested.
+
+### Force-SSO: enforced by the hosted Login UI, not by the API
+
+The org login policy was set with `PUT /management/v1/policies/login
+{"allowUsernamePassword":false,"allowExternalIdp":true,"allowRegister":false}`.
+`GetLoginSettings` then reports `allowUsernamePassword:false`,
+`allowLocalAuthentication:false`.
+
+- **Hosted Login UI:** the login-name form is not rendered; only the IdP
+  button shows. Control: a fresh org with `allowUsernamePassword:true`
+  renders the `loginName` input, and the same policy with `false` renders no
+  input. The UI's password server action also refuses with
+  `errors.localAuthenticationNotAllowed` (seen in the UI bundle; not driven).
+- **Session API:** after `SetPassword` on the SAML user, `CreateSession` with
+  `checks.password`, then `CreateCallback`, then `/oauth/v2/token` **still
+  issued tokens.** The policy is a Login UI decision. Anything holding a
+  login-client PAT (a custom login UI, or a leaked PAT) can still log in
+  with a password.
+  - For real force-SSO, keep SSO-only users password-less (do not call
+    `SetPassword`, and remove passwords that exist).
+  - Keep the hosted Login UI as the only login-client holder.
+  - Treat the login-client PAT as a secret of the same class as an admin
+    credential.
+- Not explained: on an org whose policy was flipped from `false` back to
+  `true`, the Login UI still hid the form after ~30 s, although
+  `GetLoginSettings` already returned `true`. This could be caching in the
+  UI. Not investigated.
+
+### Not covered
+
+- Hosted-UI driving of the SCIM-overlap and deactivate cases. They were run
+  at the API level only. The UI uses the same RPCs, but that is inferred, not
+  observed.
+- SAML `groups` → roles/grants. Nothing maps them, and the hook could call
+  `CreateAuthorization` but did not.
+- The hook against a non-localhost target, a JWT/JWE payload type, and
+  mapper failure behaviour (`interruptOnError`) were not exercised.
 
 ## Cleanup / side effects
 
@@ -279,3 +434,25 @@ create was rejected). The temporary Playwright script and webhook lived in
 config and seeded objects were not modified. The pulled images
 `kenchan0130/simplesamlphp` and `curlimages/curl` (used for one reachability
 check) remain in the local Docker image cache.
+
+Correction, found during fw-mf9: the fw-prs Python webhook was **not**
+stopped. `hook.py` (cwd `/tmp/samlui`) was still listening on
+`127.0.0.1:18090` about 1h40m later. fw-mf9 did not kill it, because it was
+not created by that run. Stop it with `lsof -nP -iTCP:18090 -sTCP:LISTEN`,
+then `kill <pid>`.
+
+fw-mf9 cleanup:
+
+- Torn down: the throwaway `fwmf9-zt` compose project (proxy, zitadel-api,
+  zitadel-login, postgres, plus its network and both named volumes), the
+  `fwmf9-saml-idp` container, the Node mapper, and every Actions V2
+  target/execution. `docker compose down -v` was used.
+- Verified afterwards:
+  - `docker ps -a`, `docker network ls` and `docker volume ls` showed nothing
+    from that run.
+  - The shared `fleetworks-zitadel-*` containers kept their original
+    start times.
+  - On the shared stack, the demo's no-hook run deleted its `saml-broker-*`
+    org.
+- `/tmp` work files were deleted. These were the PAT copies, logs, and the
+  throwaway Playwright scripts.
