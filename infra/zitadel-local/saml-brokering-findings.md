@@ -23,7 +23,8 @@ for SAML users, and the hosted Login UI then JIT-creates them silently with no
 "Complete your data" form. The same hook links a SAML login to an existing
 SCIM-provisioned user. SCIM deactivation blocks SAML login. Force-SSO
 (`allowUsernamePassword: false`) is enforced by the Login UI only, not by the
-Session API. Details in "fw-mf9" below; `HOOK=1 ./saml-broker-demo.sh` against
+Session API. An Actions V2 gate that enforces it in the API is proven in
+`force-sso-enforcement-findings.md` (fw-xw4). Details in "fw-mf9" below; `HOOK=1 ./saml-broker-demo.sh` against
 a throwaway second Zitadel reproduces it.
 
 ## What was run
@@ -409,6 +410,14 @@ The org login policy was set with `PUT /management/v1/policies/login
   - Keep the hosted Login UI as the only login-client holder.
   - Treat the login-client PAT as a secret of the same class as an admin
     credential.
+  - **Follow-up (fw-xw4): see `force-sso-enforcement-findings.md`.**
+    - The exposure is wider than passwords. An IAM_LOGIN_CLIENT (or
+      IAM_OWNER) holder can turn a session with only `checks.user` into
+      tokens for any user.
+    - A two-gate Actions V2 setup closes both. It uses request executions on
+      `CreateSession`/`SetSession` and on `CreateCallback` and its siblings,
+      for v2 and v2beta. It was proven on a throwaway instance, along with the
+      role matrix and a recommended production configuration.
 - Not explained: on an org whose policy was flipped from `false` back to
   `true`, the Login UI still hid the form after ~30 s, although
   `GetLoginSettings` already returned `true`. This could be caching in the
