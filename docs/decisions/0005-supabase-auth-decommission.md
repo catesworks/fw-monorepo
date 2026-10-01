@@ -155,3 +155,75 @@ otherwise break at login. Warden's step list then follows chorus's.
   identity-correlation cleanup (code 2) and platform-side secrets (P3).
 - Rolodex's dependency on the GoTrue Admin API is the one reason GoTrue cannot
   be switched off entirely. Revisit if that connector is retired.
+
+## Checklist: removing legacy subject matching (code step 2, fw-8xp)
+
+Status: **not done on purpose.** Deleting the `id === sub` fallback is only safe
+if no production `users` row can still be reached through it. A row that is
+reachable only that way would, after removal, miss every lookup and be
+re-created by JIT provisioning under a new identity, orphaning the original
+user's memberships and data. That needs a read-only production check per DB
+first. Line numbers are against the heads on 2026-10-01 (the table above cites
+older lines).
+
+### What the fallback is
+
+Every JIT function does: (1) look up `users.provider_subject = sub`; (2) if
+missing, look up `users.id = sub` and try to backfill `provider_subject`;
+(3) otherwise insert a new row with `id = provider_subject = sub`. Step 2 only
+matters when a row's `id` equals the token's `sub` but its `provider_subject`
+does not (null, empty, or an old Supabase uuid). Step 1 is not legacy: it is
+the live correlation key and must stay.
+
+| Repo | Location | Notes |
+|---|---|---|
+| fw-chorus | `apps/api/src/auth/middleware.ts:134-146` (`jitProvisionUser`, lookup at 136, guarded backfill at 140-144) | `provider_subject` nullable. |
+| fw-rolodex | `apps/api/src/auth/middleware.ts:188-197` (lookup 190, unguarded backfill 195); `provider_subject` fallback at 181-185 and doc block at 169 | Also has `zitadel_subject` (lookup at the top of the function). The unguarded backfill can overwrite a re-keyed `provider_subject`. |
+| fw-helmsman | `apps/api/src/auth/middleware.ts:157-199` (lookup 159, guarded backfill 196) | `provider_subject` is NOT NULL with a unique index; empty string means "unset". The branch is kept deliberately (plan D8). |
+| fw-warden | `apps/api/src/auth/middleware.ts:160-172` (lookup 162, backfill 166-170); docstring at 135-136 still says "Supabase sub" | Blocked by the warden mobile exception regardless. |
+| fw-yellow-pages | none | `AuthUser.id` is `payload.sub` verbatim; there is no users-table correlation to remove. Only `break_glass_admins` is read by `sub` (`middleware.ts:111-117`). |
+
+### Read-only SQL for the operator (run in each production DB)
+
+Zitadel subjects are numeric strings; Supabase subjects are uuids. All queries
+are `SELECT` only.
+
+```sql
+-- Q1: rows the id-fallback could still be the only path to
+-- (provider_subject unset). Expect 0.
+SELECT count(*) FROM users WHERE provider_subject IS NULL OR provider_subject = '';
+
+-- Q2: rows never re-keyed to a Zitadel sub (provider_subject still uuid-shaped).
+-- Expect 0 for every user who has logged in since the cutover; list the rest and
+-- decide per row (inactive account vs. missed backfill).
+SELECT id, email, provider_subject
+FROM users
+WHERE provider_subject ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+
+-- Q3: rows whose id differs from provider_subject AND whose id is not uuid-shaped
+-- (id equals a Zitadel sub but provider_subject disagrees, the exact case the
+-- fallback fires on). Expect 0.
+SELECT id, provider_subject
+FROM users
+WHERE id <> provider_subject
+  AND id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+```
+
+Rolodex only (adds the third key):
+
+```sql
+-- Q4: rows with no Zitadel correlation yet.
+SELECT count(*) FROM users WHERE zitadel_subject IS NULL;
+```
+
+Also confirm the duplicate-user symptom is absent: no two rows share an email
+(`SELECT lower(email), count(*) FROM users GROUP BY 1 HAVING count(*) > 1;`).
+
+Decision rule: Q1 and Q3 zero in a DB means the `id === sub` branch (and its
+backfill UPDATE) can be deleted in that repo. Q2 non-zero rows are users who
+have not logged in since the cutover; they are not reachable through the `id`
+fallback either (their `id` is a Supabase uuid, not a Zitadel sub), so they
+need a `provider_subject` rewrite or accept re-provisioning. Do not delete the
+`provider_subject` lookup. Keep helmsman's empty-string guard reasoning (D8) in
+mind: helmsman rows with `provider_subject = ''` fail Q1 by design until
+rewritten.
