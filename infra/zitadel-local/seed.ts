@@ -155,6 +155,17 @@ const APPS: AppSpec[] = [
     postLogoutRedirectUri: 'yellowpages://',
     applicationType: 'OIDC_APP_TYPE_NATIVE',
   },
+  {
+    key: 'warden-mobile',
+    name: 'Warden Mobile',
+    port: 0, // unused — native client, no localhost port; redirectUri below is authoritative.
+    // Scheme 'warden' from fw-warden/apps/mobile/app.json:5; mirrors
+    // zitadel_application_oidc.warden_mobile in fw-web/infra/zitadel.tf. That
+    // mobile app has no auth/callback route yet, so the path is the sibling default.
+    redirectUri: 'warden://auth/callback',
+    postLogoutRedirectUri: 'warden://',
+    applicationType: 'OIDC_APP_TYPE_NATIVE',
+  },
 ];
 
 interface TestUserSpec {
