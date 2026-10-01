@@ -21,13 +21,13 @@ Facts that shape the rules:
 
 ### 1. Resource attributes
 
-| Attribute | Value | Example |
-|---|---|---|
-| `service.namespace` | `fleetworks` | `fleetworks` |
-| `service.name` | `fw-<app>-<runtime>`, runtime ∈ `web`, `api`, `mobile`, `desktop`. Apex site is `fw-web`. | `fw-rolodex-api`, `fw-yellow-pages-web`, `fw-chorus-mobile` |
-| `service.version` | release-please version if the package has one, else short git SHA | `0.2.0`, `a1b2c3d` |
-| `deployment.environment.name` | the `ENV` value, unchanged | `prod`, `dev`, `e2e` |
-| `service.instance.id` | leave to the SDK default | |
+| Attribute                     | Value                                                                                     | Example                                                     |
+| ----------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `service.namespace`           | `fleetworks`                                                                              | `fleetworks`                                                |
+| `service.name`                | `fw-<app>-<runtime>`, runtime ∈ `web`, `api`, `mobile`, `desktop`. Apex site is `fw-web`. | `fw-rolodex-api`, `fw-yellow-pages-web`, `fw-chorus-mobile` |
+| `service.version`             | release-please version if the package has one, else short git SHA                         | `0.2.0`, `a1b2c3d`                                          |
+| `deployment.environment.name` | the `ENV` value, unchanged                                                                | `prod`, `dev`, `e2e`                                        |
+| `service.instance.id`         | leave to the SDK default                                                                  |                                                             |
 
 Rules: lowercase, hyphenated, `<app>` is the repo name without `fw-` (so `yellow-pages`, not `yp`). The name never encodes the host (Vercel, CapRover); that goes in `cloud.*`/`host.*` attributes if needed. In Sentry, project slug = `service.name`, and `environment` = `ENV`.
 
@@ -57,11 +57,11 @@ Each app ships one `scrubAttributes()`/`beforeSend` hook and one unit test that 
 
 Head-based, parent-based sampling. No tail sampling: it needs a collector, and ADR 0003 rules out running one on the Hostinger box, while Vercel functions cannot host one.
 
-| `ENV` | Traces | Errors |
-|---|---|---|
-| `prod` | parent-based ratio **0.1** | 100% |
-| `dev` | 1.0, exported only if an endpoint is configured | 100% |
-| `e2e` | exporter off | off (CI noise) |
+| `ENV`  | Traces                                          | Errors         |
+| ------ | ----------------------------------------------- | -------------- |
+| `prod` | parent-based ratio **0.1**                      | 100%           |
+| `dev`  | 1.0, exported only if an endpoint is configured | 100%           |
+| `e2e`  | exporter off                                    | off (CI noise) |
 
 - Always drop `/health`, `/public/health`, `/openapi.json`, Next.js static assets and the Uptime Kuma checks before sampling.
 - Mobile: errors and crashes 100%, traces 0 until Expo OTel matures (ADR 0003).

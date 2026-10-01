@@ -20,13 +20,13 @@ Verified 2026-10-01.
 
 Consumed as a normal registry dependency, not via workspace/link/file. The lockfiles resolve `@cogs/auth@x.y.z` with a registry integrity hash. There is no `.npmrc` or `pnpm-workspace.yaml` entry mapping `@cogs` anywhere, and the `overrides` blocks in `package.json` do not touch `@cogs/auth`.
 
-| Repo | Range |
-| --- | --- |
-| fw-chorus | `^0.7.0` |
-| fw-helmsman | `^0.7.0` |
-| fw-rolodex | `^0.7.0` |
-| fw-yellow-pages | `^0.7.0` |
-| fw-warden | `^0.6.0` (behind) |
-| fw-monorepo, fw-web | not a consumer |
+| Repo                | Range             |
+| ------------------- | ----------------- |
+| fw-chorus           | `^0.7.0`          |
+| fw-helmsman         | `^0.7.0`          |
+| fw-rolodex          | `^0.7.0`          |
+| fw-yellow-pages     | `^0.7.0`          |
+| fw-warden           | `^0.6.0` (behind) |
+| fw-monorepo, fw-web | not a consumer    |
 
 To change `@cogs/auth`: edit `cogs/packages/auth`, add a changeset, release via the cogs workflow, then bump the range in each consumer. Editing a consumer's `node_modules` or linking locally is not how the fleet consumes it.

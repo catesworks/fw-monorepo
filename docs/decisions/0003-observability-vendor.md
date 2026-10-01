@@ -28,12 +28,12 @@ The Axiom and Grafana Cloud numbers in the evaluation were fetched on 2026-08-01
 
 ## Options
 
-| Option | Cost | Ops load | Hostinger/CapRover fit |
-|---|---|---|---|
-| A. Sentry SaaS (errors + mobile crashes + low-rate tracing) | Free tier, then ~Team (unverified) | None | SDK only; nothing to run on the box |
-| B. A + Axiom or Grafana Cloud free tier for logs/traces | $0 at current volume (5-20 GB/mo estimated) | None | Exporter only |
-| C. Self-host GlitchTip (Sentry-SDK-compatible) on CapRover | $0 cash | Postgres + Redis + workers to patch, back up and watch | Competes for RAM with ~30 services on one shared box; one more thing that goes down with the box it is meant to watch |
-| D. Self-host OpenObserve / SigNoz / Grafana LGTM on CapRover | $0 cash | High (SigNoz needs ClickHouse) | Poor on a single shared VPS, same correlated-failure problem |
+| Option                                                       | Cost                                        | Ops load                                               | Hostinger/CapRover fit                                                                                                |
+| ------------------------------------------------------------ | ------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| A. Sentry SaaS (errors + mobile crashes + low-rate tracing)  | Free tier, then ~Team (unverified)          | None                                                   | SDK only; nothing to run on the box                                                                                   |
+| B. A + Axiom or Grafana Cloud free tier for logs/traces      | $0 at current volume (5-20 GB/mo estimated) | None                                                   | Exporter only                                                                                                         |
+| C. Self-host GlitchTip (Sentry-SDK-compatible) on CapRover   | $0 cash                                     | Postgres + Redis + workers to patch, back up and watch | Competes for RAM with ~30 services on one shared box; one more thing that goes down with the box it is meant to watch |
+| D. Self-host OpenObserve / SigNoz / Grafana LGTM on CapRover | $0 cash                                     | High (SigNoz needs ClickHouse)                         | Poor on a single shared VPS, same correlated-failure problem                                                          |
 
 ## Decision (proposed)
 

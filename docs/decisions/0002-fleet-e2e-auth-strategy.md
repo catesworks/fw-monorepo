@@ -10,17 +10,18 @@
 
 The bead describes a "4-1 split" between bypass and real hosted login. Current code shows a 3-1-1 split.
 
-| Repo | Suite | Main-suite login | Real hosted Zitadel login exercised? | Prod boot guard |
-|---|---|---|---|---|
-| fw-rolodex | `apps/e2e` | HS256 bypass: `GET /auth/e2e-login` (`apps/web/src/app/auth/e2e-login/route.ts:38-60`), gated by `E2E_AUTH_BYPASS==='true' && NODE_ENV!=='production'`, signed with `AUTH_DEV_SECRET`, separate `ENV=e2e` stack | No (`tests/login.spec.ts:4-9` only checks the button renders; its comment is stale) | Yes (`packages/environment/src/environment.ts:423-442`) |
-| fw-chorus | `apps/e2e` | HS256 bypass, same route, `ENV=e2e` stack | No | No |
-| fw-yellow-pages | `apps/web/e2e` | HS256 bypass, same route, `ENV=e2e` stack | Partial (`login.spec.ts:5-16` checks the handoff, doesn't finish) | No |
-| fw-helmsman | `apps/web/e2e` | Real-token mint without the UI: `POST /internal/testing/zitadel-session` with `x-drain-token`, then `/auth/testing-session`; one cached session per role; no `ENV=e2e` stack | Yes, once (`specs/login/login.spec.ts` via `flows/zitadel-login.ts`) | No |
-| fw-warden | `e2e/` | Real hosted login for every test (`specs/auth.setup.ts`, per-test re-login fixture in `fixtures.ts:20-35` because Zitadel invalidates refresh tokens); config comment says this roughly triples per-test work | Yes, every test | No (API only at `apps/api/src/index.ts:31`; web has no `instrumentation.ts`) |
+| Repo            | Suite          | Main-suite login                                                                                                                                                                                                | Real hosted Zitadel login exercised?                                                | Prod boot guard                                                              |
+| --------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| fw-rolodex      | `apps/e2e`     | HS256 bypass: `GET /auth/e2e-login` (`apps/web/src/app/auth/e2e-login/route.ts:38-60`), gated by `E2E_AUTH_BYPASS==='true' && NODE_ENV!=='production'`, signed with `AUTH_DEV_SECRET`, separate `ENV=e2e` stack | No (`tests/login.spec.ts:4-9` only checks the button renders; its comment is stale) | Yes (`packages/environment/src/environment.ts:423-442`)                      |
+| fw-chorus       | `apps/e2e`     | HS256 bypass, same route, `ENV=e2e` stack                                                                                                                                                                       | No                                                                                  | No                                                                           |
+| fw-yellow-pages | `apps/web/e2e` | HS256 bypass, same route, `ENV=e2e` stack                                                                                                                                                                       | Partial (`login.spec.ts:5-16` checks the handoff, doesn't finish)                   | No                                                                           |
+| fw-helmsman     | `apps/web/e2e` | Real-token mint without the UI: `POST /internal/testing/zitadel-session` with `x-drain-token`, then `/auth/testing-session`; one cached session per role; no `ENV=e2e` stack                                    | Yes, once (`specs/login/login.spec.ts` via `flows/zitadel-login.ts`)                | No                                                                           |
+| fw-warden       | `e2e/`         | Real hosted login for every test (`specs/auth.setup.ts`, per-test re-login fixture in `fixtures.ts:20-35` because Zitadel invalidates refresh tokens); config comment says this roughly triples per-test work   | Yes, every test                                                                     | No (API only at `apps/api/src/index.ts:31`; web has no `instrumentation.ts`) |
 
 No repo runs Playwright in GitHub Actions today; all suites run locally against local Supabase and local Zitadel.
 
 Constraints:
+
 - `@cogs/auth` treats `AUTH_ISSUER` and `AUTH_DEV_SECRET` as mutually exclusive per process, so an `ENV=e2e` stack cannot accept real Zitadel tokens. A real-login test in rolodex, chorus or yellow-pages must run on the normal `ENV=dev` stack.
 - Warden's real-login setup satisfies its cutover plan acceptance criterion 12 (a real local PKCE login before any production change); that must survive.
 - The bypass route refuses `NODE_ENV=production` on the web side, but `AUTH_DEV_SECRET` in a production API process would make `@cogs/auth` accept HS256 tokens. Only rolodex fails the boot on that.
@@ -49,9 +50,9 @@ Standardize the shape, not the mechanism.
 
 ## Alternatives considered
 
-| Option | Pros | Cons |
-|---|---|---|
-| Real hosted login everywhere (warden today) | Highest fidelity | ~3x slower per test; refresh rotation forces re-login per test; brittle against the hosted page |
-| Bypass everywhere, no real login | Fastest | Nobody tests `/auth/login`, PKCE or `/auth/callback` until production; breaks warden criterion 12 |
-| Bypass main suite + one real-login test + boot guard (chosen) | Speed and fidelity; small diffs | Two mechanisms; real-login test needs local Zitadel on `ENV=dev` |
-| Converge everyone on the drain-token mint | One mechanism | Removes working `ENV=e2e` stacks in 3 repos for no current benefit |
+| Option                                                        | Pros                            | Cons                                                                                              |
+| ------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Real hosted login everywhere (warden today)                   | Highest fidelity                | ~3x slower per test; refresh rotation forces re-login per test; brittle against the hosted page   |
+| Bypass everywhere, no real login                              | Fastest                         | Nobody tests `/auth/login`, PKCE or `/auth/callback` until production; breaks warden criterion 12 |
+| Bypass main suite + one real-login test + boot guard (chosen) | Speed and fidelity; small diffs | Two mechanisms; real-login test needs local Zitadel on `ENV=dev`                                  |
+| Converge everyone on the drain-token mint                     | One mechanism                   | Removes working `ENV=e2e` stacks in 3 repos for no current benefit                                |
