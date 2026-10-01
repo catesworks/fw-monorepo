@@ -200,6 +200,30 @@ web client. The ID and access tokens are JWTs with `iss=http://localhost:8089`,
 and their `aud` includes both rolodex client ids in `AUTH_AUDIENCE`. This does
 not exercise rolodex's own `/auth/callback` route or the API.
 
+### Verified end to end: rolodex real login (2026-10-01)
+
+The recipe above was followed through rolodex itself, in a browser, with
+the local `fw-rolodex` stack (`process-compose up`) pointed at this Zitadel.
+This was bead `fw-ah1` in fw-beads (closed). The flow was:
+
+1. `http://localhost:3013/auth/login`.
+2. Zitadel hosted Login UI v2 on `:8089`, signing in as a seeded test user.
+3. Back to `http://localhost:3013/auth/callback`: the code exchange and session
+   cookie are set.
+4. The authenticated dashboard loads and its API calls succeed. The API
+   checks tokens against this issuer through `AUTH_JWKS_URL`.
+
+The same session also exercised the `GET /api/session` Sec-Fetch-Site guard,
+the two-tab refresh race, and the SSH-keys card. The defects found were
+fixed in fw-rolodex `ed04ebf` and `498aa2d`, and `17489a4` (fw-4gk) seeds the
+local admin's org membership so a fresh login resolves an org and role.
+
+Together with "Wiring into the apps" above, this is the documented,
+working local-dev path for one app (rolodex, the Phase 1 pilot) that
+`fleetworks-monorepo-e8s.5.1.2` requires. The other four apps follow the same
+pattern with their own ports and client ids. They have not been
+browser-verified here.
+
 ## Verifying it works yourself
 
 Beyond `docker compose ps` showing all four services healthy, you can mint a
