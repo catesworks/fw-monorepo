@@ -66,6 +66,21 @@ order:
   under `.omc/plans/`.
 - The Phase 1 plan file itself (`rolodex/.omc/plans/zitadel-sso-phase1-cutover.md`)
   is REVISE-blocked, not approved — do not hand it to Ralph as-is.
+- **[2026-10-01, fleetworks-monorepo-e8s.2.2] Phase 1 ↔ Phase 2
+  duplicate-Zitadel-user hazard.** Once a customer IdP is connected as the
+  SCIM client for a Zitadel org, rolodex must never create Zitadel users in
+  that org again. The same applies to any Fleetworks tooling that creates
+  Zitadel users (`infra/zitadel-local/seed.ts`, the Phase 4 SIR provisioning
+  extension, account-fix scripts). Before the IdP is connected, run an
+  IdP-side import/match against the users that already exist. Otherwise the
+  IdP creates a second Zitadel user for the same person. Phase 1 has since
+  shipped as a clean cutover (ADR 0002; live 2026-08-26 per
+  `fw-rolodex/docs/sessions/2026-08-25-zitadel-phase1-phase2-execution/`),
+  so this now applies to Phase 2 onboarding and to all later tooling.
+  Related: SCIM `externalId` is not a durable link. An IdP PATCH overwrites
+  it and a PUT deletes it (`infra/zitadel-local/scim-findings.md`). Design:
+  `.omc/plans/phase2-scim-directory-reconciliation.md` (Cross-decision
+  hazard #2; Revision 2026-10-01 R7).
 
 ## Done this session (for reference)
 
