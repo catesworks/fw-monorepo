@@ -250,6 +250,11 @@ The resulting `id_token`'s `iss` and `azp`/`client_id` claims match this
 instance's issuer and the seeded app's client ID, and `sub` resolves via
 `/oidc/v1/userinfo` back to the exact seeded test user.
 
+`suite-identity-check.mjs` scripts this recipe for all five web clients. It
+then checks that each running app API accepts its own client's token and
+returns 401 for the other apps' tokens. See
+`docs/suite-identity-verification.md`.
+
 ## Notes / deviations
 
 - **Pinned version, not `latest`.** `ZITADEL_VERSION=v4.17.1` (current stable
