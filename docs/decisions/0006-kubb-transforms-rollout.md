@@ -16,7 +16,7 @@ published `@cogs/*` packages. The inventory below shows that premise is stale:
   no `jscodeshift`, no `transform-kubb*` script, nothing under `scripts/` that
   post-processes generated code. Generated output is raw Kubb + Kubb's own
   Prettier pass.
-- What each repo *does* hand-roll is the **seam pair**: a local
+- What each repo _does_ hand-roll is the **seam pair**: a local
   `packages/fetch-client` (77-line `xior` wrapper) and `packages/react-query`
   (TanStack re-export + `createQueryClient` + `hashKey(s)`). Those are
   byte-identical across all five repos apart from the npm scope and a header
@@ -27,13 +27,13 @@ replace the local seam packages with `@cogs/fetch-client` / `@cogs/react-query`.
 
 ### Inventory (heads: chorus `bf397eb`, helmsman `ffd31f1`, rolodex `929b6c2`, warden `45cc49b`, yellow-pages `f7910dc`)
 
-| Repo | Generated pkg | Gen files | Kubb config shape | Seam pkgs | xior-specific app code | `z.object({}).catchall` sites |
-| --- | --- | --- | --- | --- | --- | --- |
-| yellow-pages | `@yellowpages/yellowpages-api` | 346 | tag-grouped, `paramsType: object`, `operations: true`, `.ts` import ext, zod `typed: true`, `check` script | `@yellowpages/{fetch-client,react-query}` | `setup-token-refresh.ts` (refresh+retry on 401), `state-attributes.ts` (reads `error.response.data`) | yes |
-| chorus | `@dns/chorus-api` | 127 | same template as yellow-pages | `@dns/*` | 2 files | 0 |
-| rolodex | `@rolodex/rolodex-api` | 259 | same template | `@rolodex/*` | 3 files | yes |
-| helmsman | `@helmsman/helmsman-api` | 459 | same template, but **extensionless** imports (`extension: {'.ts': ''}`), routes lack `operationId` | `@helmsman/*` | 2 files | yes |
-| warden | `@tfe/warden-api` | 78 | **different**: bare `group: {type:'tag'}`, default `paramsType`, no `operations`, no `typed` zod, no import-ext setting, no `check` script; stray empty `packages/gatehouse-api/` | `@tfe/*` | 2 files | 0 |
+| Repo         | Generated pkg                  | Gen files | Kubb config shape                                                                                                                                                                 | Seam pkgs                                 | xior-specific app code                                                                               | `z.object({}).catchall` sites |
+| ------------ | ------------------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------- |
+| yellow-pages | `@yellowpages/yellowpages-api` | 346       | tag-grouped, `paramsType: object`, `operations: true`, `.ts` import ext, zod `typed: true`, `check` script                                                                        | `@yellowpages/{fetch-client,react-query}` | `setup-token-refresh.ts` (refresh+retry on 401), `state-attributes.ts` (reads `error.response.data`) | yes                           |
+| chorus       | `@dns/chorus-api`              | 127       | same template as yellow-pages                                                                                                                                                     | `@dns/*`                                  | 2 files                                                                                              | 0                             |
+| rolodex      | `@rolodex/rolodex-api`         | 259       | same template                                                                                                                                                                     | `@rolodex/*`                              | 3 files                                                                                              | yes                           |
+| helmsman     | `@helmsman/helmsman-api`       | 459       | same template, but **extensionless** imports (`extension: {'.ts': ''}`), routes lack `operationId`                                                                                | `@helmsman/*`                             | 2 files                                                                                              | yes                           |
+| warden       | `@tfe/warden-api`              | 78        | **different**: bare `group: {type:'tag'}`, default `paramsType`, no `operations`, no `typed` zod, no import-ext setting, no `check` script; stray empty `packages/gatehouse-api/` | `@tfe/*`                                  | 2 files                                                                                              | 0                             |
 
 ## Decision
 
@@ -57,15 +57,15 @@ Wire `@cogs/kubb-transforms` as `hooks.done`, followed by Prettier, with a
 `kubb-transforms.config.ts` that points `fetchClient`/`reactQuery` at the
 repo's **existing** local seams and enables only behavior-neutral passes:
 
-| Pass | Setting | Why |
-| --- | --- | --- |
-| banner strip, import merge, URL-helper collapse, `requestData` rename | on (defaults) | pure reshaping; URL helpers become exported (additive) |
-| `hooks.errorAlias`, `hooks.queryOptsParam` | on (defaults) | type alias + additive third param defaulting to `{}` |
-| `zod.catchallToRecord` with `recordKeyType: 'z.string()'` | on | Zod 4 needs two-arg `z.record`; parse results identical for JSON input |
-| `zod.mergeIntersections` | on (default) | no-op where no `.and()` is emitted |
-| `clients.confKey` | **unset** | single API per app, no operations registry to route through |
-| `hooks.placeholderData`, `hooks.nextTags` | **off** | runtime behavior changes (cached placeholder rows, Next fetch tags) — opt-in later per app |
-| `hooks.mutationLifecycle` | **off** | 0.2.0 seams drop the return value of caller `onSuccess/onError/onSettled`, so TanStack stops awaiting a returned promise (e.g. `invalidateQueries`). Re-enable after a cogs fix |
+| Pass                                                                  | Setting       | Why                                                                                                                                                                             |
+| --------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| banner strip, import merge, URL-helper collapse, `requestData` rename | on (defaults) | pure reshaping; URL helpers become exported (additive)                                                                                                                          |
+| `hooks.errorAlias`, `hooks.queryOptsParam`                            | on (defaults) | type alias + additive third param defaulting to `{}`                                                                                                                            |
+| `zod.catchallToRecord` with `recordKeyType: 'z.string()'`             | on            | Zod 4 needs two-arg `z.record`; parse results identical for JSON input                                                                                                          |
+| `zod.mergeIntersections`                                              | on (default)  | no-op where no `.and()` is emitted                                                                                                                                              |
+| `clients.confKey`                                                     | **unset**     | single API per app, no operations registry to route through                                                                                                                     |
+| `hooks.placeholderData`, `hooks.nextTags`                             | **off**       | runtime behavior changes (cached placeholder rows, Next fetch tags) — opt-in later per app                                                                                      |
+| `hooks.mutationLifecycle`                                             | **off**       | 0.2.0 seams drop the return value of caller `onSuccess/onError/onSettled`, so TanStack stops awaiting a returned promise (e.g. `invalidateQueries`). Re-enable after a cogs fix |
 
 Per repo: `pnpm --filter <api-pkg> add -D @cogs/kubb-transforms@0.2.0`, add
 the config file, add it to the api package `tsconfig.json` `include` and to the
@@ -139,13 +139,13 @@ the transforms package (it's a devDependency).
 
 ## Effort
 
-| Item | Estimate |
-| --- | --- |
-| chorus, rolodex (copy the pilot config, regenerate, review) | ~0.5 h each |
-| helmsman (extensionless + 459 files to review) | ~1 h |
-| warden (own pilot, different raw shapes) | ~1.5–2 h |
+| Item                                                               | Estimate                      |
+| ------------------------------------------------------------------ | ----------------------------- |
+| chorus, rolodex (copy the pilot config, regenerate, review)        | ~0.5 h each                   |
+| helmsman (extensionless + 459 files to review)                     | ~1 h                          |
+| warden (own pilot, different raw shapes)                           | ~1.5–2 h                      |
 | Phase B per repo (fetch transport + token-refresh rewrite + tests) | ~0.5–1 day each; do one first |
-| cogs fix: lifecycle seams should `return` the caller's result | small, in cogs |
+| cogs fix: lifecycle seams should `return` the caller's result      | small, in cogs                |
 
 ## Risks
 

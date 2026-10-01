@@ -11,13 +11,13 @@ Four session dossiers (warden, chorus, yellow-pages, helmsman) flagged that the 
 
 The fleet has since moved to Zitadel. State of each repo at `main` on 2026-10-01 (judged from code; no workflow was run):
 
-| Repo | Workflow references the key | What `apps/web/lighthouse-auth.cjs` reads | Result |
-|---|---|---|---|
-| fw-rolodex | no; passes `TESTING_DRAIN_TOKEN` (`.github/workflows/lighthouse-ci-live.yml:52`) | `TESTING_DRAIN_TOKEN`, calls `/internal/testing/zitadel-session` | Compliant. Magic-link route deleted in a84723e. |
-| fw-chorus | yes (`lighthouse-ci-live.yml:49-51`) | `SUPABASE_SECRET_KEY`, Supabase `generate_link`, then `/auth/confirm` | Broken: `/auth/confirm` no longer exists; no `/internal/testing/zitadel-session` route in the API. |
-| fw-yellow-pages | yes (`:49-51`) | `SUPABASE_SECRET_KEY`, `/auth/confirm` | Broken, same as chorus. |
-| fw-helmsman | yes (`:49-51`) | `LHCI_ZITADEL_TEST_LOGIN_NAME`, `TESTING_DRAIN_TOKEN`, `LHCI_API_URL` | Broken: script throws at its first check because none are passed; the key is passed but never read. |
-| fw-warden | yes (`:51-53`) | `TESTING_DRAIN_TOKEN` | Broken: script throws at its first check; key passed but never read. |
+| Repo            | Workflow references the key                                                      | What `apps/web/lighthouse-auth.cjs` reads                             | Result                                                                                              |
+| --------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| fw-rolodex      | no; passes `TESTING_DRAIN_TOKEN` (`.github/workflows/lighthouse-ci-live.yml:52`) | `TESTING_DRAIN_TOKEN`, calls `/internal/testing/zitadel-session`      | Compliant. Magic-link route deleted in a84723e.                                                     |
+| fw-chorus       | yes (`lighthouse-ci-live.yml:49-51`)                                             | `SUPABASE_SECRET_KEY`, Supabase `generate_link`, then `/auth/confirm` | Broken: `/auth/confirm` no longer exists; no `/internal/testing/zitadel-session` route in the API.  |
+| fw-yellow-pages | yes (`:49-51`)                                                                   | `SUPABASE_SECRET_KEY`, `/auth/confirm`                                | Broken, same as chorus.                                                                             |
+| fw-helmsman     | yes (`:49-51`)                                                                   | `LHCI_ZITADEL_TEST_LOGIN_NAME`, `TESTING_DRAIN_TOKEN`, `LHCI_API_URL` | Broken: script throws at its first check because none are passed; the key is passed but never read. |
+| fw-warden       | yes (`:51-53`)                                                                   | `TESTING_DRAIN_TOKEN`                                                 | Broken: script throws at its first check; key passed but never read.                                |
 
 The key's runtime use (Render/Vercel env, `secrets.manifest.yml`, `device-store.ts`, `seed-auth` scripts) is out of scope. rolodex `render.yaml:96-101` already states the rule: it stays on the server and never goes in a GitHub secret.
 
@@ -45,8 +45,8 @@ The key's runtime use (Render/Vercel env, `secrets.manifest.yml`, `device-store.
 
 ## Alternatives considered
 
-| Option | Pros | Cons |
-|---|---|---|
-| Keep the key in a GH Environment secret with a required reviewer | Smallest change | Still a full RLS-bypass key in CI; the magic-link flow no longer works post-Zitadel |
-| Per-repo drain-token mint (chosen) | Narrow secret; proven in rolodex and warden | Port needed in chorus and yellow-pages; test-only endpoint in prod |
-| Drop logged-in Lighthouse audits | Zero secrets | Loses dashboard performance coverage |
+| Option                                                           | Pros                                        | Cons                                                                                |
+| ---------------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Keep the key in a GH Environment secret with a required reviewer | Smallest change                             | Still a full RLS-bypass key in CI; the magic-link flow no longer works post-Zitadel |
+| Per-repo drain-token mint (chosen)                               | Narrow secret; proven in rolodex and warden | Port needed in chorus and yellow-pages; test-only endpoint in prod                  |
+| Drop logged-in Lighthouse audits                                 | Zero secrets                                | Loses dashboard performance coverage                                                |
