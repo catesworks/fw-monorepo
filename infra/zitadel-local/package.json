@@ -1,5 +1,9 @@
 {
   "name": "zitadel-local",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "test:gate": "node --test force-sso-gate/gate.test.mjs",
+    "e2e:gate": "node force-sso-gate/e2e-local.mjs"
+  }
 }
