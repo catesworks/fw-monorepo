@@ -2,7 +2,7 @@
 
 Queries for the "Checklist: removing legacy subject matching" in
 [../0005-supabase-auth-decommission.md](../0005-supabase-auth-decommission.md).
-**Written, never run.** The owner/coordinator runs them. Every file is a single
+**Run 2026-10-02 by the coordinator (results in the ADR).** Every file is a single
 `BEGIN READ ONLY` transaction (`statement_timeout` 10s, `lock_timeout` 1s) that ends in
 `ROLLBACK` and prints counts only: no emails, names, ids or tokens.
 
@@ -67,7 +67,7 @@ by the repo's `secrets.manifest.yml` `source:` plus the env suffix (env-sync con
 
 - The exact env suffix of the item (`prod` is the env-sync convention; no doc names the
   literal item for these three). The item titles contain `/`, which `op://` parsing may
-  reject; if `op read` fails, use the `op item get` form below (env-sync itself reads
+  reject (`op read` returned empty); use the `op item get` form below (env-sync itself reads
   items with `op item get --vault <vault> -- <item>`).
 - That the `*-api` item actually holds a `DATABASE_URL` field (the manifests do not list
   field names) and that it points at the production project.
@@ -93,28 +93,24 @@ an empty argument and silently connect to a local socket. Wrap psql in `sh -c` s
 expansion happens inside the command's environment. `-X` skips `~/.psqlrc`; no `-a`/`-e`
 flags (they would echo statements); `-q` hides the `BEGIN`/`SET`/`ROLLBACK` tags.
 
+Confirmed working 2026-10-02. `op read` returned empty for these items because the item
+titles contain `/`, so use `op item get` (flags **before** the `--`, item title after it):
+
 ```bash
 cd docs/decisions/0005-read-only-queries
-DATABASE_URL="$(op read 'op://app-secrets/fw-chorus/chorus-api/prod/DATABASE_URL')" \
-  sh -c 'psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -At -f "$0"' chorus.sql
-```
-
-If the `op://` form is rejected because of the `/` in the item title:
-
-```bash
-DATABASE_URL="$(op item get 'fw-chorus/chorus-api/prod' --vault app-secrets --fields label=DATABASE_URL --reveal)" \
+DATABASE_URL="$(op item get --vault app-secrets --fields label=DATABASE_URL --reveal -- 'fw-chorus/chorus-api/prod')" \
   sh -c 'psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -At -f "$0"' chorus.sql
 ```
 
 Per DB, change the item and the file:
 
-| DB       | `op read` reference                                           | file                                                  |
-| -------- | ------------------------------------------------------------- | ----------------------------------------------------- |
-| chorus   | `op://app-secrets/fw-chorus/chorus-api/prod/DATABASE_URL`     | `chorus.sql`                                          |
-| rolodex  | `op://app-secrets/fw-rolodex/rolodex-api/prod/DATABASE_URL`   | `rolodex.sql`, optionally `rolodex.scim-optional.sql` |
-| helmsman | `op://app-secrets/fw-helmsman/helmsman-api/prod/DATABASE_URL` | `helmsman.sql`                                        |
+| DB       | item (vault `app-secrets`, field label `DATABASE_URL`) | file                                                  |
+| -------- | ------------------------------------------------------ | ----------------------------------------------------- |
+| chorus   | `fw-chorus/chorus-api/prod`                            | `chorus.sql`                                          |
+| rolodex  | `fw-rolodex/rolodex-api/prod`                          | `rolodex.sql`, optionally `rolodex.scim-optional.sql` |
+| helmsman | `fw-helmsman/helmsman-api/prod`                        | `helmsman.sql`                                        |
 
-Paste only the count lines back, never the connection string. If `op` is rate limited,
+Never print or echo the value; paste only the count lines back, never the connection string. If `op` is rate limited,
 retry; do not rotate tokens.
 
 ## Output format and how to read it

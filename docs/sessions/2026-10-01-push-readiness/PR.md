@@ -44,7 +44,7 @@ Nothing deploys from this repo automatically. Merging to `main` runs `ci.yml` an
 ## Known open issues
 
 - fw-uwku: production apply of the force-SSO gate.
-- fw-k4iu: ADR 0005 production queries.
+- fw-k4iu: ADR 0005 production queries. Update 2026-10-02: run read-only against all three prod DBs; results and decision are in the ADR's "Results 2026-10-02" section (fallback deletable in chorus, rolodex, helmsman, as separate stacked branches).
 - fw-8bo9: test-mint machine user.
 - Gate paths not proven locally are documented in the gate ops and rollout doc.
 
