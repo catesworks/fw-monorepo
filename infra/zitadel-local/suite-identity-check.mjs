@@ -24,6 +24,11 @@ import { parseArgs } from 'node:util';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.ZITADEL_BASE_URL ?? 'http://localhost:8089';
+if (!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(BASE)) {
+  throw new Error(
+    'ZITADEL_BASE_URL must be http://localhost:<port> (PATs and seeded passwords are sent to it)',
+  );
+}
 const SECTIONS = {
   rolodex: 'Rolodex',
   chorus: 'Chorus',
@@ -65,6 +70,12 @@ function readClients() {
 }
 
 function readPat(file) {
+  // local Docker engine only: PATs are copied out of the container
+  if (process.env.DOCKER_HOST)
+    throw new Error('DOCKER_HOST is set; unset it (local Docker engine only)');
+  const ctx = execFileSync('docker', ['context', 'show'], { encoding: 'utf8' }).trim();
+  if (ctx !== 'default' && ctx !== 'desktop-linux')
+    throw new Error(`docker context must be default or desktop-linux (got ${ctx})`);
   const dir = mkdtempSync(join(tmpdir(), 'suite-idcheck-'));
   try {
     execFileSync(

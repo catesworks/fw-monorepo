@@ -437,8 +437,9 @@ The org login policy was set with `PUT /management/v1/policies/login
 
 Every run deletes all `saml-broker-*` orgs (with their IdPs, policies and
 users), the `saml-broker-idp` container, and its temp files. It verified
-nothing was left behind. No Actions V2 target or execution was created (the
-create was rejected). The temporary Playwright script and webhook lived in
+nothing was left behind. On the shared stack (the fw-prs run) no Actions V2
+target or execution was created (the create was rejected); the fw-mf9 HOOK
+runs did create them, on the throwaway second instance only. The temporary Playwright script and webhook lived in
 `/tmp`, were never committed, and were removed. The shared stack's own
 config and seeded objects were not modified. The pulled images
 `kenchan0130/simplesamlphp` and `curlimages/curl` (used for one reachability
