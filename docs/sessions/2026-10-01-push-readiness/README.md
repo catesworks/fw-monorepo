@@ -118,14 +118,14 @@ Revert the merge commit. There is no runtime or state impact.
 - **Date:** 2026-10-01
 - **Method:** detached `git worktree` at `5315aa9`, Node v24.1.0, pnpm 10.33.0. Commands mirror `.github/workflows/ci.yml` (install, typecheck, build, test), plus lint and format:check.
 
-| Command | Result | Detail |
-| --- | --- | --- |
-| `pnpm install --frozen-lockfile` | PASS | |
-| `pnpm typecheck` | PASS | rerun with `turbo --force`, 0 cached |
-| `pnpm lint` | PASS | rerun with `turbo --force` |
-| `pnpm format:check` | PASS | |
-| `pnpm build` | PASS | `turbo --force`, suite-nav and ui (tsup ESM, CJS, DTS) |
-| `pnpm test` | PASS | `turbo --force`: suite-nav 1 file, 6 tests; ui 4 files, 10 tests; 16 tests total |
+| Command                          | Result | Detail                                                                           |
+| -------------------------------- | ------ | -------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile` | PASS   |                                                                                  |
+| `pnpm typecheck`                 | PASS   | rerun with `turbo --force`, 0 cached                                             |
+| `pnpm lint`                      | PASS   | rerun with `turbo --force`                                                       |
+| `pnpm format:check`              | PASS   |                                                                                  |
+| `pnpm build`                     | PASS   | `turbo --force`, suite-nav and ui (tsup ESM, CJS, DTS)                           |
+| `pnpm test`                      | PASS   | `turbo --force`: suite-nav 1 file, 6 tests; ui 4 files, 10 tests; 16 tests total |
 
 - **Database suites:** none in this repo. No `TEST_DATABASE_URL` or `REQUIRE_DB_TESTS` references exist and `docs/testing-database.md` is absent, so no DB container was started.
 - **Known warnings (environmental, not defects):**
@@ -133,3 +133,15 @@ Revert the merge commit. There is no runtime or state impact.
   - The suite-nav lint run prints "React version was set to detect ... react not installed".
 - **Cache note:** the first pass replayed turbo cache hits. typecheck, lint, build and test were rerun with `--force` to confirm real execution.
 - **Defects:** none.
+
+## 10c. ADR acceptance and force-SSO gate artifacts (2026-10-02)
+
+Local commits only, nothing pushed, nothing applied to any non-local system.
+
+| Commit    | Change                                                                                                              |
+| --------- | ------------------------------------------------------------------------------------------------------------------- |
+| `1fd2554` | ADRs 0001-0006: Proposed to Accepted (2026-10-02, user decision relayed by fw-beads-6e)                             |
+| `772bf92` | fw-uwku: force-SSO Actions V2 gate (`infra/zitadel-local/force-sso-gate/`), ops and rollout doc, ADR 0001 amendment |
+
+- **HEAD tested:** `772bf92`. Gate unit tests (`npm run test:gate` in `infra/zitadel-local`): 7 passed. Local e2e (`npm run e2e:gate`, local Zitadel on :8089): 14 of 14 checks passed, both throwaway orgs removed. `terraform validate`: success; `terraform fmt -check`: clean; no plan or apply run. eslint on the new files and prettier on the touched files: clean.
+- **Still needs the user:** production apply of the gate (fw-uwku stays open); fw-k4iu (ADR 0005 production queries) untouched.
