@@ -228,3 +228,40 @@ need a `provider_subject` rewrite or accept re-provisioning. Do not delete the
 `provider_subject` lookup. Keep helmsman's empty-string guard reasoning (D8) in
 mind: helmsman rows with `provider_subject = ''` fail Q1 by design until
 rewritten.
+
+## Results 2026-10-02 (fw-k4iu)
+
+The read-only queries in [0005-read-only-queries/](0005-read-only-queries/README.md)
+were run against the three production databases (`BEGIN READ ONLY` ... `ROLLBACK`,
+exit 0). Counts only; no ids, emails or tokens are recorded here.
+
+| Query                                         | chorus | rolodex | helmsman |
+| --------------------------------------------- | ------ | ------- | -------- |
+| Q0 total users                                | 5      | 2       | 6        |
+| Q1 provider_subject unset (rolodex: Q1 / Q1r) | 0      | 0 / 0   | 0        |
+| Q3 id differs, non-uuid (rolodex: Q3 / Q3a)   | 0      | 0 / 0   | 0        |
+| Q2 provider_subject uuid-shaped               | 3      | 2       | 5        |
+| Q4 zitadel_subject unset                      | n/a    | 0       | n/a      |
+| Q5 backfill-clobber signature                 | n/a    | 2       | n/a      |
+| Qdup shared-email groups                      | 0      | 0       | 1        |
+
+Decision: the decision rule (Q1 and Q3 both 0; rolodex Q1r and Q3) is satisfied in
+all three repos, so the `id === sub` fallback is deletable in fw-chorus, fw-rolodex
+and fw-helmsman. Each deletion is delivered as a separate stacked branch per repo,
+not in the monorepo-hardening PRs. Q2 rows are informational (users not re-keyed
+since cutover; unreachable via the fallback either way). Helmsman Qdup=1 is one
+shared-email group, informational.
+
+Rolodex Q5 caveat (owner follow-up): both users have `zitadel_subject` set and a
+`provider_subject` equal to their own uuid `id`. That is either the signature of the
+old unguarded backfill clobber, or Supabase-era rows later given a `zitadel_subject`
+(more likely with only 2 users). It is not proof of either. The owner should eyeball
+those 2 rows (`zitadel_subject` vs `provider_subject` vs `id`) before the rolodex
+fallback deletion merges. Tracked as a needs-user bead.
+
+### SCIM matching policy
+
+Production user bases are tiny (2 to 6 users per DB). `externalId` is the only match
+key for SCIM-provisioned users. `employeeNumber` is not stored by Zitadel SCIM, so it
+is not used for matching. At this scale no fuzzy or secondary-key matching is
+warranted; revisit only if a user base grows enough for manual reconciliation to hurt.
