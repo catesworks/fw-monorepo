@@ -31,6 +31,12 @@ die() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 # Zitadel (needed for HOOK=1, see saml-brokering-findings.md); localhost only.
 BASE=${ZITADEL_BASE:-http://localhost:8089}
 [[ $BASE =~ ^http://localhost:[0-9]+$ ]] || die "ZITADEL_BASE must be http://localhost:<port>"
+# HOOK=1 registers an instance-wide Actions V2 target + execution: never on the shared stack.
+[[ -z ${HOOK:-} || $BASE != http://localhost:8089 ]] ||
+  die "HOOK=1 refuses the shared Zitadel (http://localhost:8089); point ZITADEL_BASE at a throwaway instance (see header)"
+# This script runs `docker rm -f` and bind-mounts a key: only the local engine.
+[[ -z ${DOCKER_HOST:-} ]] || die "DOCKER_HOST is set; unset it (local Docker engine only)"
+case $(docker context show) in default | desktop-linux) ;; *) die "docker context must be default or desktop-linux" ;; esac
 IDP_PORT=${IDP_PORT:-18080}
 IDP_BASE=http://localhost:$IDP_PORT
 CONTAINER=${IDP_CONTAINER:-saml-broker-idp}
@@ -42,8 +48,9 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 COMPOSE_DIR=${ZITADEL_COMPOSE_DIR:-$HERE}
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/saml-broker.XXXXXX")
 chmod 700 "$WORK"
-# bind-mounted into the IdP container, so it must outlive this run when KEEP=1
-IDPDIR=${TMPDIR:-/tmp}/$CONTAINER
+# bind-mounted into the IdP container, so it must outlive this run when KEEP=1:
+# created after the initial cleanup, its path recorded in $IDPDIR_REC for `cleanup`.
+IDPDIR_REC=${TMPDIR:-/tmp}/$CONTAINER.idpdir
 
 PAT=$WORK/seed.pat
 LOGIN_PAT=$WORK/login.pat
@@ -73,8 +80,12 @@ INTENT_METHOD=/zitadel.user.v2.UserService/RetrieveIdentityProviderIntent
 
 cleanup() {
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
-  rm -rf "$IDPDIR"
-  [[ -f $MAPPER_PID ]] && kill "$(cat "$MAPPER_PID")" 2>/dev/null; rm -f "$MAPPER_PID" "$MAPPER_LOG"
+  if [[ -f $IDPDIR_REC ]]; then
+    rm -rf "$(cat "$IDPDIR_REC")"
+    rm -f "$IDPDIR_REC"
+  fi
+  if [[ -f $MAPPER_PID ]]; then kill "$(cat "$MAPPER_PID")" 2>/dev/null || true; fi
+  rm -f "$MAPPER_PID" "$MAPPER_LOG"
   local ids t
   # Actions V2 objects are instance-wide: drop the execution, then our target.
   t=$(rpc "$PAT" zitadel.action.v2.ActionService/ListTargets \
@@ -99,14 +110,21 @@ if [[ ${1:-} == cleanup ]]; then
   rm -rf "$WORK"
   exit 0
 fi
-trap '[[ -n ${KEEP:-} ]] || cleanup; rm -rf "$WORK"' EXIT
+# cleanup needs $WORK/seed.pat, so it runs first; $WORK (PAT copies, signing key)
+# is removed regardless. KEEP=1 is safe: the mapper reads PAT + signing key into
+# memory at startup (mapper.mjs), and the IdP container only mounts $IDPDIR.
+trap '[[ -n ${KEEP:-} ]] || cleanup || true; rm -rf "$WORK"' EXIT
 cleanup # idempotent: start from zero
-mkdir -p "$IDPDIR"
+IDPDIR=$(mktemp -d "${TMPDIR:-/tmp}/$CONTAINER.XXXXXX")
+printf '%s' "$IDPDIR" >"$IDPDIR_REC"
 
 log "1. IdP signing cert (the image's baked-in cert expired in 2020; Zitadel rejects it)"
 openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=saml-broker-idp" \
   -keyout "$IDPDIR/server.pem" -out "$IDPDIR/server.crt" >/dev/null 2>&1
-chmod 644 "$IDPDIR/server.pem" # container's apache user must read it; throwaway key
+# 644, not 600: the container's apache user is a different uid and must read the
+# bind-mounted key (untested whether 600 works under Docker Desktop file sharing).
+# Acceptable: 2-day throwaway key inside a mode-700 mktemp dir, removed by cleanup.
+chmod 644 "$IDPDIR/server.pem"
 
 # Representative enterprise directory: stable uid + the usual profile attributes.
 cat >"$IDPDIR/authsources.php" <<'PHP'
@@ -194,6 +212,9 @@ if [[ -n ${HOOK:-} ]]; then
   # Reference mapper. Zitadel POSTs {fullMethod, instanceID, orgID, userID,
   # request, response} (orgID/userID are the CALLER's, i.e. the login client,
   # not the customer org) and uses the returned JSON as the new response.
+  # DO NOT PORT AS-IS: it marks the email verified and auto-links by email on the
+  # IdP's say-so. A real mapper must first check the email's domain against the
+  # org's verified domains (else any IdP admin can claim/link any user).
   cat >"$WORK/mapper.mjs" <<'JS'
 import http from 'node:http';
 import crypto from 'node:crypto';
@@ -389,12 +410,15 @@ echo "second id_token sub == $USER"
 
 log "9. Negative: a SAML response for a different IdP user cannot open alice's session"
 read -r INTENT3 TOKEN3 < <(federate bob)
+[[ -n $INTENT3 && -n $TOKEN3 ]] || die "no intent/token for bob; cannot run the negative check"
 if (rpc "$LOGIN_PAT" zitadel.session.v2.SessionService/CreateSession \
   "{\"checks\":{\"user\":{\"userId\":\"$USER\"},\"idpIntent\":{\"idpIntentId\":\"$INTENT3\",\"idpIntentToken\":\"$TOKEN3\"}}}") \
   >/dev/null 2>"$WORK/neg.err"; then
   die "bob's intent opened alice's session"
 fi
-echo "rejected as expected: $(grep -oE '"message":"[^"]*"' "$WORK/neg.err" | head -1)"
+grep -q 'COMMAND-O8xk3w' "$WORK/neg.err" ||
+  die "bob's intent failed, but not with 'Intent meant for another user (COMMAND-O8xk3w)': $(cat "$WORK/neg.err")"
+echo "rejected as expected: Intent meant for another user (COMMAND-O8xk3w)"
 
 scim() { # scim <method> <path> [json]: SCIM call in the customer org
   curl -sS -X "$1" -H "Authorization: Bearer $(cat "$PAT")" -H 'Content-Type: application/scim+json' \
@@ -431,15 +455,16 @@ OUT=$(scim PATCH "Users/$CAROL" '{"schemas":["urn:ietf:params:scim:api:messages:
   "Operations":[{"op":"replace","path":"active","value":false}]}')
 [[ ${OUT##*$'\n'} == 204 ]] || die "SCIM deactivate: $OUT"
 echo "state: $(rpc "$PAT" zitadel.user.v2.UserService/GetUserByID "{\"userId\":\"$CAROL\"}" | jq -r .user.state)"
-if read -r INTENT5 TOKEN5 < <(federate carol 2>"$WORK/fed.err"); then
-  echo "IdP round trip + ACS still succeed; intent userId: $(retrieve "$INTENT5" "$TOKEN5" | jq -r '.userId // "none"')"
-  if (oidc_login "$(idp_checks "$CAROL" "$INTENT5" "$TOKEN5")") >/dev/null 2>"$WORK/neg.err"; then
-    die "deactivated SCIM user still got tokens via SAML"
-  fi
-  echo "blocked: $(grep -oE '"message":"[^"]*"' "$WORK/neg.err" | head -1)"
-else
-  echo "blocked at the ACS: $(cat "$WORK/fed.err")"
+# Observed (findings): IdP + ACS still succeed; the block is at CreateSession.
+read -r INTENT5 TOKEN5 < <(federate carol)
+[[ -n $INTENT5 && -n $TOKEN5 ]] || die "no intent/token for deactivated carol"
+echo "IdP round trip + ACS still succeed; intent userId: $(retrieve "$INTENT5" "$TOKEN5" | jq -r '.userId // "none"')"
+if (oidc_login "$(idp_checks "$CAROL" "$INTENT5" "$TOKEN5")") >/dev/null 2>"$WORK/neg.err"; then
+  die "deactivated SCIM user still got tokens via SAML"
 fi
+grep -qE 'Errors\.User\.NotActive|SESSION-Gj4ko' "$WORK/neg.err" ||
+  die "deactivated carol was rejected, but not with Errors.User.NotActive (SESSION-Gj4ko): $(cat "$WORK/neg.err")"
+echo "blocked: Errors.User.NotActive (SESSION-Gj4ko)"
 
 log "12. Force SSO: org login policy allowUsernamePassword=false, then a password session for alice"
 PW="Throwaway-$(openssl rand -hex 8)-1!" # never printed
@@ -456,6 +481,9 @@ echo "login settings: $(rpc "$LOGIN_PAT" zitadel.settings.v2.SettingsService/Get
 if (oidc_login "{\"user\":{\"userId\":\"$USER\"},\"password\":{\"password\":\"$PW\"}}") >/dev/null 2>"$WORK/neg.err"; then
   echo "Session API + CreateCallback STILL issued tokens for a password login (policy is enforced by the Login UI only)"
 else
+  # must be a Zitadel API rejection (HTTP 4xx + message), not a script/curl/network failure
+  grep -qE 'HTTP 4[0-9][0-9]: .*"message"' "$WORK/neg.err" ||
+    die "password login failed, but not with a Zitadel API error: $(cat "$WORK/neg.err")"
   echo "password login rejected: $(grep -oE '"message":"[^"]*"' "$WORK/neg.err" | head -1)"
 fi
 
