@@ -1,6 +1,7 @@
 # ADR 0004: OpenTelemetry conventions — service.name, PII scrubbing, sampling (fw-eif)
 
-- Status: Proposed
+- Status: Accepted
+- Accepted 2026-10-02; approver: the user (decision relayed by fw-beads-6e)
 - Date: 2026-10-01
 - Bead: fw-eif (parent epic fw-sd6)
 - Scope: every fw-* runtime that will emit telemetry (web, api, mobile, desktop) and fw-web (apex)

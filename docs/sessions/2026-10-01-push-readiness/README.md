@@ -74,7 +74,7 @@ Needs-user beads anchored in these docs:
 
 - Very low for production, since there is no runtime code.
 - `saml-broker-demo.sh` and `suite-identity-check.mjs` accept credentials via flags or env and are documented as local-only. A secret-pattern scan of the added lines found no tokens, keys or credentialed URLs.
-- ADRs 0001, 0003 and 0004 (at least) say `Status: Proposed`, yet consumer repos already implement 0001 and 0004. Once pushed they read as fleet guidance, so accept them, or note that they are not yet accepted.
+- ADRs 0001-0006 were accepted on 2026-10-02 (user decision relayed by fw-beads-6e); see section 10c.
 
 ## 6. Verification evidence
 

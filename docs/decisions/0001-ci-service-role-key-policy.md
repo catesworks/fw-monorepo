@@ -1,6 +1,7 @@
 # ADR 0001: CI service-role key policy (fw-tng)
 
-- Status: Proposed
+- Status: Accepted
+- Accepted 2026-10-02; approver: the user (decision relayed by fw-beads-6e)
 - Date: 2026-10-01
 - Bead: fw-tng (parent fw-zso)
 - Scope: fw-rolodex, fw-chorus, fw-helmsman, fw-warden, fw-yellow-pages

@@ -1,6 +1,7 @@
 # ADR 0006: @cogs/kubb-transforms rollout to the fw-* API clients (fw-fgi)
 
-- Status: Proposed
+- Status: Accepted
+- Accepted 2026-10-02; approver: the user (decision relayed by fw-beads-6e)
 - Date: 2026-10-01
 - Bead: fw-fgi (epic, central `fw-beads` tracker, label `app:fleet`)
 - Scope: fw-chorus, fw-helmsman, fw-rolodex, fw-warden, fw-yellow-pages

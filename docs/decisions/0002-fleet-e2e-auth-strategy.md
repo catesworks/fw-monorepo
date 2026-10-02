@@ -1,6 +1,7 @@
 # ADR 0002: Fleet e2e auth strategy (fw-z9b)
 
-- Status: Proposed
+- Status: Accepted
+- Accepted 2026-10-02; approver: the user (decision relayed by fw-beads-6e)
 - Date: 2026-10-01
 - Bead: fw-z9b (parent fw-zso)
 - Scope: fw-rolodex, fw-chorus, fw-helmsman, fw-warden, fw-yellow-pages
