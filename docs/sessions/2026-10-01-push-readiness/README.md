@@ -111,3 +111,25 @@ No consumer depends on unpublished cogs code.
 ## 9. Rollback
 
 Revert the merge commit. There is no runtime or state impact.
+
+## 10. Final verification (clean worktree)
+
+- **HEAD verified:** `5315aa9` (confirmed with `git rev-parse`). The doc commit that records this section follows the verified HEAD and changes docs only.
+- **Date:** 2026-10-01
+- **Method:** detached `git worktree` at `5315aa9`, Node v24.1.0, pnpm 10.33.0. Commands mirror `.github/workflows/ci.yml` (install, typecheck, build, test), plus lint and format:check.
+
+| Command | Result | Detail |
+| --- | --- | --- |
+| `pnpm install --frozen-lockfile` | PASS | |
+| `pnpm typecheck` | PASS | rerun with `turbo --force`, 0 cached |
+| `pnpm lint` | PASS | rerun with `turbo --force` |
+| `pnpm format:check` | PASS | |
+| `pnpm build` | PASS | `turbo --force`, suite-nav and ui (tsup ESM, CJS, DTS) |
+| `pnpm test` | PASS | `turbo --force`: suite-nav 1 file, 6 tests; ui 4 files, 10 tests; 16 tests total |
+
+- **Database suites:** none in this repo. No `TEST_DATABASE_URL` or `REQUIRE_DB_TESTS` references exist and `docs/testing-database.md` is absent, so no DB container was started.
+- **Known warnings (environmental, not defects):**
+  - pnpm prints `Failed to replace env in config: ${NPM_TOKEN}` from the host `~/.npmrc`.
+  - The suite-nav lint run prints "React version was set to detect ... react not installed".
+- **Cache note:** the first pass replayed turbo cache hits. typecheck, lint, build and test were rerun with `--force` to confirm real execution.
+- **Defects:** none.
