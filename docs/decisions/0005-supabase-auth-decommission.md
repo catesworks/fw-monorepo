@@ -1,6 +1,7 @@
 # ADR 0005: Supabase Auth (GoTrue) human-login decommission plan (e8s.4.1)
 
-- Status: Proposed
+- Status: Accepted
+- Accepted 2026-10-02; approver: the user (decision relayed by fw-beads-6e)
 - Date: 2026-10-01
 - Bead: fleetworks-monorepo-e8s.4.1 (parent epic fleetworks-monorepo-e8s.4, Phase 5)
 - Scope: fw-chorus, fw-rolodex, fw-yellow-pages, fw-helmsman, fw-warden

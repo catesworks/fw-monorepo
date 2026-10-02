@@ -1,6 +1,7 @@
 # ADR 0003: Observability vendor (fw-2n4)
 
-- Status: Proposed
+- Status: Accepted
+- Accepted 2026-10-02; approver: the user (decision relayed by fw-beads-6e)
 - Date: 2026-10-01
 - Bead: fw-2n4 (parent epic fw-sd6)
 - Scope: fw-rolodex, fw-chorus, fw-helmsman, fw-warden, fw-yellow-pages (web, api, mobile), fw-web (apex)
