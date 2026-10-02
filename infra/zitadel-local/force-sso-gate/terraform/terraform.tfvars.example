@@ -1,0 +1,5 @@
+# Copy to terraform.tfvars (gitignored); contains no secrets.
+zitadel_domain = "idp.example.com"
+gate_endpoint  = "https://force-sso-gate.example.com/force-sso"
+# Stage 0 (shadow): interrupt_on_error = false, gate GATE_MODE=shadow.
+interrupt_on_error = true

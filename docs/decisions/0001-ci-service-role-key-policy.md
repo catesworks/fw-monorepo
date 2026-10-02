@@ -51,3 +51,19 @@ The key's runtime use (Render/Vercel env, `secrets.manifest.yml`, `device-store.
 | Keep the key in a GH Environment secret with a required reviewer | Smallest change                             | Still a full RLS-bypass key in CI; the magic-link flow no longer works post-Zitadel |
 | Per-repo drain-token mint (chosen)                               | Narrow secret; proven in rolodex and warden | Port needed in chorus and yellow-pages; test-only endpoint in prod                  |
 | Drop logged-in Lighthouse audits                                 | Zero secrets                                | Loses dashboard performance coverage                                                |
+
+## Amendment 2026-10-02: decision 2 blast radius (fw-uwku)
+
+Status stays Accepted. An independent review (2026-10-01, noted on bead fw-uwku) found that decision 2 understates the exposure:
+
+- The drain-token allowlist limits the **route** (`/internal/testing/zitadel-session` mints only for one allowlisted account). It does not limit the **API process** that serves the route. That process holds `ZITADEL_SEED_BOT_PAT` (IAM_OWNER) and `ZITADEL_LOGIN_CLIENT_PAT` (IAM_LOGIN_CLIENT) in its environment. Either credential can log in as any user in any org without a password (`infra/zitadel-local/force-sso-enforcement-findings.md`). Anyone with code execution or env access in that process has that power, whatever `TESTING_DRAIN_TOKEN` says.
+- Unsetting `TESTING_DRAIN_TOKEN` disables the route but leaves both PATs in the environment.
+- There are more production holders than the original scope suggests: fw-chorus (ada35a8) and fw-yellow-pages (3f3cf1d) add two more.
+
+Amended wording of decision 2: `TESTING_DRAIN_TOKEN` is the only login secret **CI** holds, and the route can only mint for the allowlisted account. The consequence "a leaked CI secret yields a viewer-level test session" holds for CI. It does not hold for the API process, which must be treated as a holder of credentials that can impersonate any user until the controls below are in place.
+
+Required follow-ups (tracked in fw-uwku):
+
+1. Deploy the Actions V2 two-part gate (session gate + finalize gate, HTTPS, signed, fail-closed by default) before force-SSO is offered to any customer. Artifacts: `infra/zitadel-local/force-sso-gate/`; operations and rollout runbook: `infra/zitadel-local/force-sso-gate-ops.md`. Production apply needs the owner's approval.
+2. Move the mint routes off the `seed-bot` (IAM_OWNER) PAT to a dedicated IAM_LOGIN_CLIENT "test-mint" machine user; keep only the Login UI and that user as login-client holders (findings, recommendations 2-3).
+3. Do not set the two PATs or `TESTING_DRAIN_TOKEN` in any API environment that does not run Lighthouse/e2e. Rotate both PATs on the admin-credential schedule.
