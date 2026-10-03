@@ -20,8 +20,10 @@
 //   GATE_FORCE_SSO_FACTORS      default "intent". Factors that satisfy a force-SSO org. Add
 //                               "webAuthN" to allow passkeys there (owner policy decision).
 //   GATE_SCOPE_ORG_IDS          optional comma list. Only enforce for these orgs; other orgs are
-//                               allowed unchecked (staged rollout). Empty = all orgs.
-//   GATE_TS_WINDOW_S            signature timestamp tolerance, default 300
+//                               allowed unchecked (staged rollout). Empty = all orgs. A password
+//                               check whose org cannot be determined is DENIED even when a scope
+//                               list is set (fail closed: we cannot show it is out of scope).
+//   GATE_TS_WINDOW_S            signature timestamp tolerance in seconds, integer 1..3600, default 300
 //   GATE_HOST / GATE_PORT       default 127.0.0.1 / 8787
 //   GATE_TLS_CERT_FILE/KEY_FILE serve HTTPS directly. Binding a non-loopback address requires
 //                               these, or GATE_BEHIND_TLS_PROXY=1 (a TLS-terminating proxy).
@@ -129,7 +131,9 @@ export function makeLookup({ url, pat, timeoutMs = 3000, fetchImpl = fetch }) {
       }
       if (!loginName) return undefined;
       const { result = [] } = await rpc('zitadel.user.v2.UserService/ListUsers', {
-        queries: [{ loginNameQuery: { loginName, method: 'TEXT_QUERY_METHOD_EQUALS' } }],
+        queries: [
+          { loginNameQuery: { loginName, method: 'TEXT_QUERY_METHOD_EQUALS_IGNORE_CASE' } },
+        ],
       });
       return result.length === 1 ? result[0].details?.resourceOwner : undefined;
     },
@@ -187,16 +191,16 @@ export function loadConfig(env = process.env) {
         : undefined,
   };
   if (cfg.keys.length === 0) throw new Error('GATE_SIGNING_KEY_FILE has no key');
+  if (!Number.isInteger(cfg.tsWindowS) || cfg.tsWindowS < 1 || cfg.tsWindowS > 3600) {
+    throw new Error('GATE_TS_WINDOW_S must be an integer between 1 and 3600');
+  }
   if (!LOOPBACK.has(cfg.host) && !cfg.tls && env.GATE_BEHIND_TLS_PROXY !== '1') {
     throw new Error(
       'non-loopback GATE_HOST requires GATE_TLS_CERT_FILE/GATE_TLS_KEY_FILE or GATE_BEHIND_TLS_PROXY=1',
     );
   }
-  if (
-    !cfg.tls &&
-    !LOOPBACK.has(new URL(cfg.url).hostname) &&
-    new URL(cfg.url).protocol !== 'https:'
-  ) {
+  // cfg.tls is the gate's own listener, unrelated to the upstream: the PAT goes to ZITADEL_URL
+  if (!LOOPBACK.has(new URL(cfg.url).hostname) && new URL(cfg.url).protocol !== 'https:') {
     throw new Error('ZITADEL_URL must be https unless it is localhost (the PAT is sent to it)');
   }
   return cfg;
@@ -219,12 +223,15 @@ export function makeHandler(cfg, lookup, log = (o) => console.log(JSON.stringify
       return;
     }
     if (req.method !== 'POST' || req.url !== '/force-sso') return res.writeHead(404).end();
-    let body = '';
+    const chunks = [];
+    let size = 0;
     req.on('data', (c) => {
-      body += c;
-      if (body.length > 1 << 20) req.destroy();
+      chunks.push(c);
+      size += c.length;
+      if (size > 1 << 20) req.destroy();
     });
     req.on('end', async () => {
+      const body = Buffer.concat(chunks).toString('utf8');
       if (
         !verifySignature(
           req.headers['zitadel-signature'],

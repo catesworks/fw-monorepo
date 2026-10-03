@@ -4,7 +4,7 @@ import { createHmac } from 'node:crypto';
 import { once } from 'node:events';
 import http from 'node:http';
 import test from 'node:test';
-import { decide, makeHandler, verifySignature } from './gate.mjs';
+import { decide, makeHandler, makeLookup, verifySignature } from './gate.mjs';
 
 const KEY = 'test-signing-key';
 const sign = (body, key = KEY, t = Math.floor(Date.now() / 1000)) =>
@@ -189,6 +189,20 @@ test('loadConfig guards: loopback by default, TLS off-loopback, fail-closed defa
       /must be https/,
     );
     assert.throws(() => loadConfig({ ...env, GATE_FAIL_MODE: 'maybe' }), /GATE_FAIL_MODE/);
+    // the upstream check must not depend on the gate's own TLS listener
+    const tls = { GATE_TLS_CERT_FILE: join(d, 'pat'), GATE_TLS_KEY_FILE: join(d, 'pat') };
+    assert.throws(
+      () => loadConfig({ ...env, ...tls, ZITADEL_URL: 'http://idp.example.com' }),
+      /must be https/,
+    );
+    for (const bad of ['abc', '0', '-5', '1.5', '3601', '']) {
+      assert.throws(
+        () => loadConfig({ ...env, GATE_TS_WINDOW_S: bad }),
+        /GATE_TS_WINDOW_S/,
+        `window ${JSON.stringify(bad)}`,
+      );
+    }
+    assert.equal(loadConfig({ ...env, GATE_TS_WINDOW_S: '60' }).tsWindowS, 60);
     assert.throws(
       () => loadConfig({ ...env, GATE_SIGNING_KEY_FILE: undefined }),
       /GATE_SIGNING_KEY_FILE is required/,
@@ -196,4 +210,25 @@ test('loadConfig guards: loopback by default, TLS off-loopback, fail-closed defa
   } finally {
     rmSync(d, { recursive: true, force: true });
   }
+});
+
+test('scope list set + unresolvable org: password check is denied (fail closed)', async () => {
+  const scoped = { ...cfg, scopeOrgIds: ['OTHER'] };
+  const pw = { password: { password: 'x' } };
+  const r = await run(CS, { checks: { user: { loginName: 'nobody' }, ...pw } }, scoped);
+  assert.deepEqual([r.allow, r.reason], [false, 'org-unresolved']);
+});
+
+test('login-name lookup is case-insensitive', async () => {
+  let sent;
+  const l = makeLookup({
+    url: 'http://x',
+    pat: 'p',
+    fetchImpl: async (_u, init) => {
+      sent = JSON.parse(init.body);
+      return { ok: true, json: async () => ({ result: [{ details: { resourceOwner: 'O1' } }] }) };
+    },
+  });
+  assert.equal(await l.userOrg({ loginName: 'Alice@SSO' }), 'O1');
+  assert.equal(sent.queries[0].loginNameQuery.method, 'TEXT_QUERY_METHOD_EQUALS_IGNORE_CASE');
 });

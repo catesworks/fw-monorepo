@@ -17,6 +17,12 @@ needs-user (bead fw-uwku stays open). Tested only as unit tests and against the 
 - Session gate: password check for a user in an org with `allowUsernamePassword != true` -> deny.
 - Finalize gate: session with no authentication factor -> deny in every org; in a force-SSO org
   also deny unless it has an allowed factor (`GATE_FORCE_SSO_FACTORS`, default `intent`).
+- Scope list (`GATE_SCOPE_ORG_IDS`): orgs outside it are allowed unchecked, **but a password check
+  whose org cannot be determined (unknown login name, ambiguous match, unreadable session) is
+  denied even when a scope list is set**. Decision (review round 4): fail closed, because the gate
+  cannot show the request is out of scope; the cost is that a mistyped login name gets the same
+  generic denial it would get from Zitadel anyway. Login-name lookup is case-insensitive.
+- `GATE_TS_WINDOW_S` must be an integer 1..3600 (default 300); anything else fails at boot.
 - Unknown `fullMethod` -> deny. Request bodies (they contain plaintext passwords) are never logged.
 - Secrets are read from files at start (`ZITADEL_PAT_FILE`, `GATE_SIGNING_KEY_FILE`); none are committed.
 - Dev guard: binds `127.0.0.1` by default. A non-loopback bind requires TLS files
@@ -87,6 +93,9 @@ because a user-only `CreateSession` also hits the target). Operate it as part of
      sign in to the Console while the gate is down (not assumed here); keep that owner credential
      outside the gate's dependency chain.
 - **State and secrets:** the signing key is in Terraform state: encrypted remote backend, restricted access.
+  The Terraform config declares **no backend**, so by default the signing key lands in a local
+  `terraform.tfstate` on the operator's machine. Before any real apply, add an encrypted remote
+  backend (versioned, access-restricted) and never run apply from a laptop with local state.
 
 ## Rollout runbook (proposal; NOT applied to production)
 
@@ -138,3 +147,11 @@ PAT hygiene items (findings recommendations 2-3).
 finalize paths actually exercised; passkey/OTP sessions; a network/path restriction; behaviour under
 target latency; the `AuthorizeOrDenyDeviceAuthorization` and `CreateResponse` request shape (assumed
 to carry `session.{sessionId,sessionToken}` like `CreateCallback`).
+
+## Needs-user policy items
+
+- **Does OTP-only count as a factor in force-SSO orgs?** `GATE_FORCE_SSO_FACTORS` defaults to
+  `intent` (IdP login only). Passkeys (`webAuthN`) and OTP-only sessions (`totp`, `otpSms`,
+  `otpEmail`) do not satisfy a force-SSO org unless the owner adds them. An OTP-only session has
+  no first factor proving who the user is, so the safe default is to exclude it; the owner must
+  decide before stage 2. Tracked as a needs-user bead.
