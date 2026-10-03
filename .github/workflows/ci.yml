@@ -25,3 +25,9 @@ jobs:
       - run: pnpm build
 
       - run: pnpm test
+
+      # infra/zitadel-local is not a pnpm workspace package, so `pnpm test` skips it.
+      # Pure unit tests: no secrets, no Zitadel.
+      - name: Force-SSO gate unit tests
+        working-directory: infra/zitadel-local
+        run: node --test force-sso-gate/gate.test.mjs

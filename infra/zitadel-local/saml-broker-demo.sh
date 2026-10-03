@@ -36,7 +36,7 @@ BASE=${ZITADEL_BASE:-http://localhost:8089}
   die "HOOK=1 refuses the shared Zitadel (http://localhost:8089); point ZITADEL_BASE at a throwaway instance (see header)"
 # This script runs `docker rm -f` and bind-mounts a key: only the local engine.
 [[ -z ${DOCKER_HOST:-} ]] || die "DOCKER_HOST is set; unset it (local Docker engine only)"
-case $(docker context show) in default | desktop-linux) ;; *) die "docker context must be default or desktop-linux" ;; esac
+case $(docker context show) in default | desktop-linux | orbstack) ;; *) die "docker context must be a local engine: default, desktop-linux or orbstack" ;; esac
 IDP_PORT=${IDP_PORT:-18080}
 IDP_BASE=http://localhost:$IDP_PORT
 CONTAINER=${IDP_CONTAINER:-saml-broker-idp}
