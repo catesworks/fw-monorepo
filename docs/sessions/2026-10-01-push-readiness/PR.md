@@ -33,13 +33,28 @@ Nothing deploys from this repo automatically. Merging to `main` runs `ci.yml` an
 - Very low for production: no runtime code.
 - The gate artifacts could be mistaken for applied enforcement. They are not applied.
 - The local scripts accept credentials via flags or env and are documented as local-only.
+- Terraform for the gate has no backend: the signing key would land in local state. Add an encrypted remote backend before any real apply (ops doc).
+- Open policy: whether OTP-only sessions count as a force-SSO factor (needs-user, fw-zf72).
 
 ## Verification
 
 - Clean-worktree run at `5315aa9` (Node v24.1.0, pnpm 10.33.0, `turbo --force`): install --frozen-lockfile, typecheck, lint, format:check, build and test all PASS (16 tests). See README section 10.
 - Commits after `5315aa9` were NOT part of that clean-worktree run: `3d8f90c` (docs), `1fd2554` (ADR status, docs), `772bf92` (gate), `5ae64e6` (docs).
 - `772bf92` had its own tests: gate unit tests 7 passed; local e2e 14 of 14 checks passed (local Zitadel :8089, throwaway orgs removed); `terraform validate` success; `terraform fmt -check` clean; eslint and prettier clean on the touched files. No terraform plan or apply was run.
-- Pushed HEAD: `5ae64e6`. CI on this PR is the first real run of these commits.
+- Pushed HEAD: see Review round 4 (verified at `ee139eb`, plus this docs commit). CI on this PR is the first real run of these commits.
+
+## Review round 4
+
+Independent review (comment 5969979602): COMMENT, no HIGH. Fixed in `ee139eb`:
+
+- MED1: `ZITADEL_URL` must be https (non-localhost) even when the gate serves TLS itself.
+- MED2: `GATE_TS_WINDOW_S` must be an integer 1..3600, else boot fails.
+- MED3: unresolved org denies even with a scope list (fail closed); header comment and ops doc updated, decision recorded.
+- MED4: `ci.yml` now runs `node --test force-sso-gate/gate.test.mjs` in `infra/zitadel-local`.
+- LOW: tfvars.example keeps shadow mode; no-backend state warning; request chunks buffered as Buffers; `saml-broker-demo.sh` Docker-host guard (accepts default, desktop-linux, orbstack); login-name lookup now `EQUALS_IGNORE_CASE`; OTP-only policy item documented and tracked as fw-zf72.
+- `release.yml` checked: changesets/action opens a version PR when changesets are pending and otherwise runs `changeset publish`, which only publishes package versions not already on npm. Nothing to publish here; no change.
+
+Verified at `ee139eb`: gate unit tests 9 passed; local e2e 14 of 14, throwaway orgs removed; prettier, eslint, `bash -n` clean; `terraform fmt -check` clean. `terraform validate` could not run offline (provider cache broken, init needs the registry), and only a tfvars example value changed.
 
 ## Known open issues
 
